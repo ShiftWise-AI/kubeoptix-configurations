@@ -18,6 +18,11 @@ GIT_SOURCE_SECRET_NAMESPACE="${GIT_SOURCE_SECRET_NAMESPACE:-github-auth}"
 RUN_POST_INSTALL_CLEANUP="${RUN_POST_INSTALL_CLEANUP:-true}"
 DATABASE_HELM_ARGS="${DATABASE_HELM_ARGS:-}"
 APPLICATION_HELM_ARGS="${APPLICATION_HELM_ARGS:-}"
+WAIT_FOR_APPLICATION_BUILD="${WAIT_FOR_APPLICATION_BUILD:-true}"
+APPLICATION_BUILD_TIMEOUT_SECONDS="${APPLICATION_BUILD_TIMEOUT_SECONDS:-1800}"
+APPLICATION_BUILD_POLL_INTERVAL_SECONDS="${APPLICATION_BUILD_POLL_INTERVAL_SECONDS:-5}"
+REQUIRE_GIT_SOURCE_SECRET="${REQUIRE_GIT_SOURCE_SECRET:-false}"
+BUILD_SOURCE_SECRET_ENABLED="true"
 
 generate_postgresql_password() {
   if command -v openssl >/dev/null 2>&1; then
@@ -40,11 +45,145 @@ detect_kube_client() {
   fi
 }
 
+check_cluster_access() {
+  local kube_client="${1}"
+
+  if [[ -z "${kube_client}" ]]; then
+    echo "ERROR: Neither 'oc' nor 'kubectl' was found in PATH." >&2
+    return 1
+  fi
+
+  if [[ "${kube_client}" == "oc" ]]; then
+    if ! oc whoami >/dev/null 2>&1; then
+      echo "ERROR: OpenShift cluster is not reachable with current 'oc' context." >&2
+      echo "Hint: run 'oc login ...' and verify with 'oc whoami'." >&2
+      return 1
+    fi
+  else
+    if ! kubectl cluster-info >/dev/null 2>&1; then
+      echo "ERROR: Kubernetes cluster is not reachable with current 'kubectl' context." >&2
+      echo "Hint: configure kubeconfig and verify with 'kubectl cluster-info'." >&2
+      return 1
+    fi
+  fi
+
+  if ! helm ls --all-namespaces >/dev/null 2>&1; then
+    echo "ERROR: Helm cannot reach the Kubernetes API server with current kube context." >&2
+    echo "Hint: verify KUBECONFIG/current-context and test with 'helm ls -A'." >&2
+    return 1
+  fi
+}
+
+wait_for_application_build() {
+  local kube_client="${1}"
+  local build_name="${2:-}"
+  local buildconfig_name=""
+  local build_phase=""
+  local deadline="0"
+
+  if [[ "${WAIT_FOR_APPLICATION_BUILD}" != "true" ]]; then
+    return
+  fi
+
+  if [[ "${kube_client}" != "oc" ]]; then
+    echo "Skipping build wait because OpenShift CLI (oc) is not available."
+    return
+  fi
+
+  if [[ -z "${build_name}" ]]; then
+    buildconfig_name="$(oc get buildconfig \
+      --namespace "${NAMESPACE}" \
+      --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" \
+      --output 'jsonpath={.items[0].metadata.name}' 2>/dev/null || true)"
+
+    if [[ -z "${buildconfig_name}" ]]; then
+      echo "No BuildConfig found for release '${APPLICATION_RELEASE_NAME}' in namespace '${NAMESPACE}'."
+      return
+    fi
+
+    build_name="$(oc get buildconfig "${buildconfig_name}" \
+      --namespace "${NAMESPACE}" \
+      --output 'jsonpath={.metadata.name}-{.status.lastVersion}' 2>/dev/null || true)"
+  fi
+
+  if [[ -z "${build_name}" ]]; then
+    echo "No build found to wait for in namespace '${NAMESPACE}'."
+    return
+  fi
+
+  echo "Waiting for build '${build_name}' to finish."
+  deadline=$((SECONDS + APPLICATION_BUILD_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    build_phase="$(oc get build "${build_name}" \
+      --namespace "${NAMESPACE}" \
+      --output 'jsonpath={.status.phase}' 2>/dev/null || true)"
+
+    case "${build_phase}" in
+      Complete)
+        echo "Build '${build_name}' completed successfully."
+        return
+        ;;
+      Failed|Error|Cancelled)
+        echo "ERROR: Build '${build_name}' finished with phase '${build_phase}'." >&2
+        echo "Recent build log:" >&2
+        oc logs "build/${build_name}" --namespace "${NAMESPACE}" --tail=100 >&2 || true
+        return 1
+        ;;
+      New|Pending|Running|"")
+        ;;
+      *)
+        echo "Build '${build_name}' is in phase '${build_phase}', waiting..."
+        ;;
+    esac
+
+    sleep "${APPLICATION_BUILD_POLL_INTERVAL_SECONDS}"
+  done
+
+  echo "ERROR: Timed out waiting for build '${build_name}' after ${APPLICATION_BUILD_TIMEOUT_SECONDS}s." >&2
+  oc logs "build/${build_name}" --namespace "${NAMESPACE}" --tail=100 >&2 || true
+  return 1
+}
+
+start_application_build() {
+  local kube_client="${1}"
+  local buildconfig_name=""
+  local build_name=""
+
+  if [[ "${kube_client}" != "oc" ]]; then
+    echo "Skipping build trigger because OpenShift CLI (oc) is not available."
+    return
+  fi
+
+  buildconfig_name="$(oc get buildconfig \
+    --namespace "${NAMESPACE}" \
+    --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" \
+    --output 'jsonpath={.items[0].metadata.name}' 2>/dev/null || true)"
+
+  if [[ -z "${buildconfig_name}" ]]; then
+    echo "No BuildConfig found for release '${APPLICATION_RELEASE_NAME}' in namespace '${NAMESPACE}'. Skipping build trigger."
+    return
+  fi
+
+  echo "Starting a new build from BuildConfig '${buildconfig_name}'."
+  build_name="$(oc start-build "${buildconfig_name}" --namespace "${NAMESPACE}" --output name 2>/dev/null || true)"
+
+  if [[ -z "${build_name}" ]]; then
+    echo "ERROR: Failed to start a new build from BuildConfig '${buildconfig_name}'." >&2
+    return 1
+  fi
+
+  echo "Triggered build '${build_name}'."
+  wait_for_application_build "${kube_client}" "${build_name#build/}"
+}
+
 copy_git_source_secret() {
   local kube_client="${1}"
   local source_secret_name="${GIT_SOURCE_SECRET_NAME}"
   local source_namespace="${GIT_SOURCE_SECRET_NAMESPACE}"
   local discovered_namespace=""
+  local candidate_secret_name=""
+  local common_secret_name=""
 
   if [[ "${COPY_GIT_SOURCE_SECRET}" != "true" ]]; then
     return
@@ -52,6 +191,34 @@ copy_git_source_secret() {
 
   if "${kube_client}" get secret "${source_secret_name}" --namespace "${NAMESPACE}" >/dev/null 2>&1; then
     echo "Using existing Git source secret '${source_secret_name}' in namespace '${NAMESPACE}'."
+    return
+  fi
+
+  for common_secret_name in gitlab github-auth github git source-secret scm; do
+    if "${kube_client}" get secret "${common_secret_name}" --namespace "${NAMESPACE}" >/dev/null 2>&1; then
+      echo "Configured Git source secret '${source_secret_name}' was not found in namespace '${NAMESPACE}'."
+      echo "Using discovered Git source secret '${common_secret_name}' in namespace '${NAMESPACE}'."
+      GIT_SOURCE_SECRET_NAME="${common_secret_name}"
+      return
+    fi
+  done
+
+  candidate_secret_name="$("${kube_client}" get secret \
+    --namespace "${NAMESPACE}" \
+    --output jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.type}{"\n"}{end}' 2>/dev/null \
+    | awk '$2=="kubernetes.io/basic-auth" && $1 ~ /(git|github|gitlab|scm)/ { print $1; exit }' || true)"
+
+  if [[ -z "${candidate_secret_name}" ]]; then
+    candidate_secret_name="$("${kube_client}" get secret \
+      --namespace "${NAMESPACE}" \
+      --output jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.type}{"\n"}{end}' 2>/dev/null \
+      | awk '$2=="kubernetes.io/basic-auth" { print $1; exit }' || true)"
+  fi
+
+  if [[ -n "${candidate_secret_name}" ]]; then
+    echo "Configured Git source secret '${source_secret_name}' was not found in namespace '${NAMESPACE}'."
+    echo "Using discovered Git source secret '${candidate_secret_name}' in namespace '${NAMESPACE}'."
+    GIT_SOURCE_SECRET_NAME="${candidate_secret_name}"
     return
   fi
 
@@ -68,9 +235,16 @@ copy_git_source_secret() {
       echo "Namespace '${source_namespace}' not found. Using discovered namespace '${discovered_namespace}' for secret '${source_secret_name}'."
       source_namespace="${discovered_namespace}"
     else
-      echo "ERROR: Git source secret '${source_secret_name}' not found in namespace '${NAMESPACE}', and source namespace '${source_namespace}' does not exist." >&2
-      echo "Hint: set GIT_SOURCE_SECRET_NAME and GIT_SOURCE_SECRET_NAMESPACE explicitly for your cluster." >&2
-      return 1
+      if [[ "${REQUIRE_GIT_SOURCE_SECRET}" == "true" ]]; then
+        echo "ERROR: Git source secret '${source_secret_name}' not found in namespace '${NAMESPACE}', and source namespace '${source_namespace}' does not exist." >&2
+        echo "Hint: set GIT_SOURCE_SECRET_NAME and GIT_SOURCE_SECRET_NAMESPACE explicitly for your cluster." >&2
+        return 1
+      fi
+
+      echo "WARNING: Git source secret not found; continuing with BuildConfig sourceSecret disabled." >&2
+      echo "Set REQUIRE_GIT_SOURCE_SECRET=true to fail fast instead." >&2
+      BUILD_SOURCE_SECRET_ENABLED="false"
+      return
     fi
   fi
 
@@ -109,6 +283,13 @@ if [[ -n "${APPLICATION_HELM_ARGS}" ]]; then
   APPLICATION_HELM_ARGS_ARRAY+=("${APPLICATION_HELM_EXTRA_ARGS_ARRAY[@]}")
 fi
 
+if ! command -v helm >/dev/null 2>&1; then
+  echo "ERROR: helm command not found in PATH." >&2
+  exit 1
+fi
+
+check_cluster_access "${KUBE_CLIENT}"
+
 if [[ "${INSTALL_DATABASE}" == "true" && -z "${POSTGRESQL_PASSWORD}" ]]; then
 
   if [[ -n "${KUBE_CLIENT}" ]]; then
@@ -126,11 +307,6 @@ if [[ "${INSTALL_DATABASE}" == "true" && -z "${POSTGRESQL_PASSWORD}" ]]; then
   fi
 fi
 
-if ! command -v helm >/dev/null 2>&1; then
-  echo "ERROR: helm command not found in PATH." >&2
-  exit 1
-fi
-
 if [[ "${INSTALL_APPLICATION}" == "true" && -n "${KUBE_CLIENT}" ]]; then
   "${KUBE_CLIENT}" create namespace "${NAMESPACE}" >/dev/null 2>&1 || true
   copy_git_source_secret "${KUBE_CLIENT}"
@@ -145,11 +321,24 @@ if [[ "${INSTALL_DATABASE}" == "true" ]]; then
 fi
 
 if [[ "${INSTALL_APPLICATION}" == "true" ]]; then
-  helm upgrade --install "${APPLICATION_RELEASE_NAME}" "${APPLICATION_CHART_PATH}" \
-    --namespace "${NAMESPACE}" \
-    --create-namespace \
-    --set-string buildConfig.sourceSecret.name="${GIT_SOURCE_SECRET_NAME}" \
-    "${APPLICATION_HELM_ARGS_ARRAY[@]}"
+  APPLICATION_HELM_COMMAND=(
+    helm upgrade --install "${APPLICATION_RELEASE_NAME}" "${APPLICATION_CHART_PATH}"
+    --namespace "${NAMESPACE}"
+    --create-namespace
+    --set "buildConfig.sourceSecret.enabled=${BUILD_SOURCE_SECRET_ENABLED}"
+  )
+
+  if [[ "${BUILD_SOURCE_SECRET_ENABLED}" == "true" ]]; then
+    APPLICATION_HELM_COMMAND+=(--set-string "buildConfig.sourceSecret.name=${GIT_SOURCE_SECRET_NAME}")
+  fi
+
+  APPLICATION_HELM_COMMAND+=("${APPLICATION_HELM_ARGS_ARRAY[@]}")
+
+  "${APPLICATION_HELM_COMMAND[@]}"
+
+  if [[ -n "${KUBE_CLIENT}" ]]; then
+    start_application_build "${KUBE_CLIENT}"
+  fi
 fi
 
 if [[ "${RUN_POST_INSTALL_CLEANUP}" == "true" ]]; then
