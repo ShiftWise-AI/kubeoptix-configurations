@@ -22,12 +22,14 @@ COPY --chown=1001:root src ./src
 
 RUN mvn -B -DskipTests -Dmaven.repo.local=/project/.m2/repository package
 
-FROM registry.access.redhat.com/ubi10/openjdk-25-runtime:1.22 AS runtime
+FROM registry.access.redhat.com/ubi10:1785332448 AS runtime
 
 WORKDIR /work
 
 USER 0
-RUN chown -R 1001:root /work \
+RUN dnf install -y java-25-openjdk-headless.x86_64 \
+    && dnf clean all \
+    && chown -R 1001:root /work \
     && chmod -R g+rwX /work
 
 COPY --from=builder --chown=1001:root /project/target/quarkus-app/lib/ /work/lib/
