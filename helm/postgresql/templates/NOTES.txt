@@ -1,0 +1,10 @@
+PostgreSQL was installed.
+
+Service name:
+  {{ include "kubeoptix-postgresql.fullname" . }}
+
+Database:
+  {{ .Values.postgresql.database }}
+
+Connection example inside the cluster:
+  psql -h {{ include "kubeoptix-postgresql.fullname" . }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}

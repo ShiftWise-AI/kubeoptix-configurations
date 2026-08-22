@@ -1,0 +1,49 @@
+// KubeOptix database schema
+// Domain: Kubernetes cost/resource optimization platform
+
+Table documents_versions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  title varchar [not null]
+  project_manager varchar [not null]
+  author_id uuid [not null, ref: > authors.id]
+  costumers varchar [not null, ref: > costumers.id]
+  version_id uuid [not null, ref: > versions.id]
+  created_at timestamp [default: `now()`]
+}
+
+Table versions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  version_number varchar [not null]
+  markdown_content text [null]
+  created_at timestamp [default: `now()`]
+}
+
+
+Table authors {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar [not null]
+  position varchar [not null]
+  email varchar [not null]
+  created_at timestamp [default: `now()`]
+}
+
+Table costumers {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar [not null]
+  position varchar [not null]
+  email varchar [not null]
+  created_at timestamp [default: `now()`]
+}
+
+Table system_setings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  language varchar [default: `enum: 'en', 'pt', 'es', 'it'`]
+  cursor_api_key varchar [null]
+  cursor_model varchar [null]
+  llm_api_key varchar [null]
+  llm_model varchar [null]
+  status varchar [default: `enum: 'active', 'inactive'`]
+  default_extraction_method varchar [default: `enum: 'ml', 'llm'`]
+  created_at timestamp [default: `now()`]
+
+}

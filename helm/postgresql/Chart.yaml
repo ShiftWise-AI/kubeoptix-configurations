@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kubeoptix-db
+description: PostgreSQL database for the kubeoptix-db application
+type: application
+version: 0.1.0
+appVersion: "18"

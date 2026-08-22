@@ -1,0 +1,56 @@
+replicaCount: 1
+
+image:
+  registry: registry.redhat.io
+  repository: rhel9/postgresql-18
+  tag: 9.8-1787043471
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: kubeoptix-db
+fullnameOverride: kubeoptix-db
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 5432
+
+postgresql:
+  database: kubeoptix
+  username: kubeoptix
+  password: changeme
+  existingSecret: ""
+  secretKeys:
+    username: POSTGRESQL_USER
+    password: POSTGRESQL_PASSWORD
+    database: POSTGRESQL_DATABASE
+
+persistence:
+  enabled: true
+  size: 20Gi
+  # Leave unset to use the default StorageClass configured in the OpenShift cluster.
+  storageClassName: null
+  accessModes:
+    - ReadWriteOnce
+  mountPath: /var/lib/pgsql/data
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
