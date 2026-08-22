@@ -1,0 +1,30 @@
+# Version control and IDE metadata
+.git/
+.vscode/
+.idea/
+
+# Build outputs and dependency caches
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Deployment and infrastructure files that are not Java application source
+helm/
+database/
+install.sh
+post-install-cleanup.sh
+
+# Container build metadata is useful only for container-specific tasks
+.dockerignore
+helm/postgresql/.helmignore

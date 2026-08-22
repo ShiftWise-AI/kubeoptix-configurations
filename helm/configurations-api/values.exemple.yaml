@@ -1,0 +1,21 @@
+replicaCount: 1
+
+image:
+  repository: image-registry.openshift-image-registry.svc:5000/shiftwise-ai/kubeoptix-configurations
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  name: configurations-api
+  type: ClusterIP
+  port: 8000
+
+containerPort: 8000
+
+buildConfig:
+  enabled: true
+  gitUri: https://github.com/ShiftWise-AI/kubeoptix-configurations.git
+  gitRef: main
+  sourceSecret:
+    enabled: true
+    name: gitlab

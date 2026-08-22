@@ -86,10 +86,16 @@ The post-install cleanup script removes only temporary `Secret` and `ConfigMap` 
 kubeoptix.io/post-install-cleanup=true
 ```
 
+It also removes Helm release metadata `Secret` or `ConfigMap` resources matching this release prefix:
+
+```text
+sh.helm.release.v1.kubeoptix-db*
+```
+
 Run it manually when needed:
 
 ```bash
-./post-install-cleanup.sh shiftwise-ai
+./post-install-cleanup.sh shiftwise-ai kubeoptix-db
 ```
 
-The PostgreSQL runtime secret is not removed because it is used by the `StatefulSet`. Helm release secrets are also not removed, so future `helm upgrade` and `helm uninstall` operations continue to work.
+The PostgreSQL runtime secret `kubeoptix-db` is not removed because it is used by the `StatefulSet`.

@@ -1,0 +1,36 @@
+{{- if .Values.buildConfig.enabled -}}
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: {{ .Values.buildConfig.name }}
+  labels:
+    {{- include "kubeoptix-configurations.labels" . | nindent 4 }}
+spec:
+  source:
+    type: Git
+    git:
+      uri: {{ .Values.buildConfig.gitUri | quote }}
+      ref: {{ .Values.buildConfig.gitRef | quote }}
+    {{- if .Values.buildConfig.contextDir }}
+    contextDir: {{ .Values.buildConfig.contextDir | quote }}
+    {{- end }}
+    {{- if .Values.buildConfig.sourceSecret.enabled }}
+    sourceSecret:
+      name: {{ .Values.buildConfig.sourceSecret.name }}
+    {{- end }}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: {{ .Values.buildConfig.dockerfilePath | quote }}
+  output:
+    to:
+      kind: ImageStreamTag
+      name: {{ .Values.buildConfig.outputImageStreamTag | quote }}
+  triggers:
+    {{- if .Values.buildConfig.triggers.configChange }}
+    - type: ConfigChange
+    {{- end }}
+    {{- if .Values.buildConfig.triggers.imageChange }}
+    - type: ImageChange
+    {{- end }}
+{{- end }}

@@ -1,0 +1,80 @@
+replicaCount: 1
+
+image:
+  repository: image-registry.openshift-image-registry.svc:5000/shiftwise-ai/kubeoptix-configurations
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: kubeoptix-configurations
+fullnameOverride: kubeoptix-configurations
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  name: configurations-api
+  type: ClusterIP
+  port: 8000
+
+containerPort: 8000
+
+env: []
+
+probes:
+  liveness:
+    path: /q/health/live
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    path: /q/health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /q/health/started
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 24
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+buildConfig:
+  enabled: true
+  name: kubeoptix-configurations
+  gitUri: https://github.com/ShiftWise-AI/kubeoptix-configurations.git
+  gitRef: main
+  contextDir: ""
+  dockerfilePath: Containerfile
+  sourceSecret:
+    enabled: true
+    name: gitlab
+  outputImageStreamTag: kubeoptix-configurations:latest
+  triggers:
+    configChange: true
+    imageChange: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 768Mi
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

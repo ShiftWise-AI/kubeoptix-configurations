@@ -2,7 +2,9 @@
 set -euo pipefail
 
 NAMESPACE="${1:-${NAMESPACE:-shiftwise-ai}}"
+RELEASE_NAME="${2:-${RELEASE_NAME:-kubeoptix-db}}"
 CLEANUP_LABEL="${CLEANUP_LABEL:-kubeoptix.io/post-install-cleanup=true}"
+HELM_RELEASE_PREFIX="sh.helm.release.v1.${RELEASE_NAME}"
 
 if command -v oc >/dev/null 2>&1; then
   KUBE_CLIENT="oc"
@@ -19,5 +21,20 @@ echo "Removing temporary post-install secrets and configmaps from namespace '${N
   --namespace "${NAMESPACE}" \
   --selector "${CLEANUP_LABEL}" \
   --ignore-not-found
+
+mapfile -t HELM_RELEASE_RESOURCES < <(
+  "${KUBE_CLIENT}" get secret,configmap \
+    --namespace "${NAMESPACE}" \
+    --output name 2>/dev/null \
+    | grep -E "^(secret|configmap)/${HELM_RELEASE_PREFIX}(\.|$)" || true
+)
+
+if (( ${#HELM_RELEASE_RESOURCES[@]} > 0 )); then
+  echo "Removing Helm release metadata for '${RELEASE_NAME}' from namespace '${NAMESPACE}'."
+  "${KUBE_CLIENT}" delete \
+    --namespace "${NAMESPACE}" \
+    --ignore-not-found \
+    "${HELM_RELEASE_RESOURCES[@]}"
+fi
 
 echo "Post-install cleanup completed."

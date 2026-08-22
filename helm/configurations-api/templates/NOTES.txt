@@ -1,0 +1,9 @@
+kubeoptix-configurations was installed.
+
+Service name:
+  {{ .Values.service.name }}
+
+Internal URL:
+  http://{{ .Values.service.name }}:{{ .Values.service.port }}
+
+No OpenShift Route is created by this chart.

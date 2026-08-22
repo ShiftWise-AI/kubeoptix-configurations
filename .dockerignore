@@ -1,0 +1,13 @@
+.git
+.gitignore
+.dockerignore
+.idea
+.vscode
+
+database
+helm
+
+target/
+
+*.log
+*.tmp
