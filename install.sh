@@ -21,6 +21,9 @@ APPLICATION_HELM_ARGS="${APPLICATION_HELM_ARGS:-}"
 WAIT_FOR_APPLICATION_BUILD="${WAIT_FOR_APPLICATION_BUILD:-true}"
 APPLICATION_BUILD_TIMEOUT_SECONDS="${APPLICATION_BUILD_TIMEOUT_SECONDS:-1800}"
 APPLICATION_BUILD_POLL_INTERVAL_SECONDS="${APPLICATION_BUILD_POLL_INTERVAL_SECONDS:-5}"
+WAIT_FOR_APPLICATION_ROLLOUT="${WAIT_FOR_APPLICATION_ROLLOUT:-true}"
+APPLICATION_ROLLOUT_TIMEOUT_SECONDS="${APPLICATION_ROLLOUT_TIMEOUT_SECONDS:-900}"
+APPLICATION_ROLLOUT_POLL_INTERVAL_SECONDS="${APPLICATION_ROLLOUT_POLL_INTERVAL_SECONDS:-5}"
 REQUIRE_GIT_SOURCE_SECRET="${REQUIRE_GIT_SOURCE_SECRET:-false}"
 BUILD_SOURCE_SECRET_ENABLED="true"
 
@@ -80,6 +83,7 @@ wait_for_application_build() {
   local buildconfig_name=""
   local build_phase=""
   local deadline="0"
+  local missing_polls=0
 
   if [[ "${WAIT_FOR_APPLICATION_BUILD}" != "true" ]]; then
     return
@@ -106,6 +110,9 @@ wait_for_application_build() {
       --output 'jsonpath={.metadata.name}-{.status.lastVersion}' 2>/dev/null || true)"
   fi
 
+  # Accept plain names and qualified references such as build.build.openshift.io/<name>.
+  build_name="${build_name##*/}"
+
   if [[ -z "${build_name}" ]]; then
     echo "No build found to wait for in namespace '${NAMESPACE}'."
     return
@@ -115,7 +122,7 @@ wait_for_application_build() {
   deadline=$((SECONDS + APPLICATION_BUILD_TIMEOUT_SECONDS))
 
   while (( SECONDS < deadline )); do
-    build_phase="$(oc get build "${build_name}" \
+    build_phase="$(oc get builds.build.openshift.io "${build_name}" \
       --namespace "${NAMESPACE}" \
       --output 'jsonpath={.status.phase}' 2>/dev/null || true)"
 
@@ -130,9 +137,18 @@ wait_for_application_build() {
         oc logs "build/${build_name}" --namespace "${NAMESPACE}" --tail=100 >&2 || true
         return 1
         ;;
-      New|Pending|Running|"")
+      "")
+        missing_polls=$((missing_polls + 1))
+        if (( missing_polls >= 6 )); then
+          echo "ERROR: Build '${build_name}' was not found in namespace '${NAMESPACE}'." >&2
+          return 1
+        fi
+        ;;
+      New|Pending|Running)
+        missing_polls=0
         ;;
       *)
+        missing_polls=0
         echo "Build '${build_name}' is in phase '${build_phase}', waiting..."
         ;;
     esac
@@ -173,8 +189,56 @@ start_application_build() {
     return 1
   fi
 
+  build_name="${build_name##*/}"
   echo "Triggered build '${build_name}'."
-  wait_for_application_build "${kube_client}" "${build_name#build/}"
+  wait_for_application_build "${kube_client}" "${build_name}"
+}
+
+wait_for_application_rollout() {
+  local kube_client="${1}"
+  local workload=""
+  local deadline="0"
+  local desired_replicas=""
+  local ready_replicas=""
+
+  if [[ "${WAIT_FOR_APPLICATION_ROLLOUT}" != "true" ]]; then
+    return
+  fi
+
+  workload="$("${kube_client}" get statefulset,deployment \
+    --namespace "${NAMESPACE}" \
+    --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" \
+    --output 'jsonpath={.items[0].kind}/{.items[0].metadata.name}' 2>/dev/null || true)"
+  workload="$(echo "${workload}" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ -z "${workload}" || "${workload}" == "/" ]]; then
+    echo "No workload found for release '${APPLICATION_RELEASE_NAME}' in namespace '${NAMESPACE}'. Skipping rollout wait."
+    return
+  fi
+
+  echo "Waiting for '${workload}' to become available in namespace '${NAMESPACE}'."
+  deadline=$((SECONDS + APPLICATION_ROLLOUT_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    desired_replicas="$("${kube_client}" get "${workload}" \
+      --namespace "${NAMESPACE}" \
+      --output 'jsonpath={.spec.replicas}' 2>/dev/null || true)"
+    ready_replicas="$("${kube_client}" get "${workload}" \
+      --namespace "${NAMESPACE}" \
+      --output 'jsonpath={.status.readyReplicas}' 2>/dev/null || true)"
+
+    if [[ -n "${desired_replicas}" && "${ready_replicas:-0}" == "${desired_replicas}" ]]; then
+      echo "Workload '${workload}' is ready (${ready_replicas}/${desired_replicas})."
+      return
+    fi
+
+    sleep "${APPLICATION_ROLLOUT_POLL_INTERVAL_SECONDS}"
+  done
+
+  echo "ERROR: Timed out waiting for '${workload}' to become ready after ${APPLICATION_ROLLOUT_TIMEOUT_SECONDS}s." >&2
+  "${kube_client}" get pods --namespace "${NAMESPACE}" \
+    --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" >&2 || true
+  return 1
 }
 
 copy_git_source_secret() {
@@ -338,15 +402,10 @@ if [[ "${INSTALL_APPLICATION}" == "true" ]]; then
 
   if [[ -n "${KUBE_CLIENT}" ]]; then
     start_application_build "${KUBE_CLIENT}"
+    wait_for_application_rollout "${KUBE_CLIENT}"
   fi
 fi
 
 if [[ "${RUN_POST_INSTALL_CLEANUP}" == "true" ]]; then
-  if [[ "${INSTALL_DATABASE}" == "true" ]]; then
-    "${REPO_ROOT}/post-install-cleanup.sh" "${NAMESPACE}" "${DATABASE_RELEASE_NAME}"
-  fi
-
-  if [[ "${INSTALL_APPLICATION}" == "true" ]]; then
-    "${REPO_ROOT}/post-install-cleanup.sh" "${NAMESPACE}" "${APPLICATION_RELEASE_NAME}"
-  fi
+  "${REPO_ROOT}/post-install-cleanup.sh" "${NAMESPACE}"
 fi
