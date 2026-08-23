@@ -22,7 +22,7 @@ service:
 postgresql:
   database: kubeoptix
   username: kubeoptix
-  password: changeme
+  password: 1dceb4d2ddcc5d97245ffc445d26fe85d9edb2fa31e0c398
   existingSecret: ""
   secretKeys:
     username: POSTGRESQL_USER

@@ -21,6 +21,9 @@ service:
 
 containerPort: 8000
 
+database:
+  secretName: kubeoptix-db
+
 env: []
 
 probes:

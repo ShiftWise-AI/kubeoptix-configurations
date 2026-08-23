@@ -39,8 +39,11 @@ podman build -f Containerfile.native -t kubeoptix-configurations:native .
 Run locally:
 
 ```bash
-podman run --rm -p 8000:8000 kubeoptix-configurations:latest
+podman compose up -d postgresql
+mvn quarkus:dev
 ```
+
+The root `.env` file contains the local PostgreSQL settings. `compose.yaml` starts PostgreSQL on `localhost:5432`; Quarkus loads the same variables when started in development mode.
 
 Health endpoint:
 
@@ -67,6 +70,8 @@ Install PostgreSQL and the `kubeoptix-configurations` API:
 ```
 
 The installer expects the Git source secret `gitlab` to exist in namespace `github-auth`. It copies that secret into `shiftwise-ai` because OpenShift `BuildConfig` source secrets must be in the same namespace as the build.
+
+The PostgreSQL chart automatically creates the `kubeoptix-db` Secret containing `POSTGRESQL_DATABASE`, `POSTGRESQL_USER`, and `POSTGRESQL_PASSWORD`. The API imports those values when it is installed by `./install.sh`.
 
 If those defaults are not available, the installer automatically tries to discover a `kubernetes.io/basic-auth` secret in the target namespace and uses it as the BuildConfig source secret.
 
