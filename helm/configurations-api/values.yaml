@@ -54,7 +54,7 @@ buildConfig:
   enabled: true
   name: kubeoptix-configurations
   gitUri: https://github.com/ShiftWise-AI/kubeoptix-configurations.git
-  gitRef: main
+  gitRef: feature/dm-versioncontroll
   contextDir: ""
   dockerfilePath: Containerfile
   sourceSecret:
