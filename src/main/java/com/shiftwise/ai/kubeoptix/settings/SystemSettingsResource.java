@@ -12,6 +12,7 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -48,6 +49,23 @@ public class SystemSettingsResource {
         }
 
         apply(request, settings);
+        return SystemSettingsResponse.from(settings);
+    }
+
+    @PATCH
+    @Transactional
+    @Operation(summary = "Update system settings", description = "Updates the existing system settings record. Only the provided fields are changed.")
+    @RequestBody(required = true, content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = SystemSettingsRequest.class), examples = @ExampleObject(name = "Partial settings payload", value = """
+                    {
+                        "llmModel": "llama-3.3-70b",
+                        "status": "inactive"
+                    }
+                    """)))
+    @APIResponse(responseCode = "200", description = "System settings updated.", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = SystemSettingsResponse.class)))
+    @APIResponse(responseCode = "404", description = "System settings were not configured yet.")
+    public SystemSettingsResponse update(SystemSettingsRequest request) {
+        SystemSettings settings = requiredSettings();
+        merge(request, settings);
         return SystemSettingsResponse.from(settings);
     }
 
@@ -89,5 +107,29 @@ public class SystemSettingsResource {
         settings.status = request.status() == null ? SettingsStatus.ACTIVE : request.status();
         settings.defaultExtractionMethod = request.defaultExtractionMethod() == null ? ExtractionMethod.ML
                 : request.defaultExtractionMethod();
+    }
+
+    private static void merge(SystemSettingsRequest request, SystemSettings settings) {
+        if (request.language() != null) {
+            settings.language = request.language();
+        }
+        if (request.cursorApiKey() != null) {
+            settings.cursorApiKey = request.cursorApiKey();
+        }
+        if (request.cursorModel() != null) {
+            settings.cursorModel = request.cursorModel();
+        }
+        if (request.llmApiKey() != null) {
+            settings.llmApiKey = request.llmApiKey();
+        }
+        if (request.llmModel() != null) {
+            settings.llmModel = request.llmModel();
+        }
+        if (request.status() != null) {
+            settings.status = request.status();
+        }
+        if (request.defaultExtractionMethod() != null) {
+            settings.defaultExtractionMethod = request.defaultExtractionMethod();
+        }
     }
 }

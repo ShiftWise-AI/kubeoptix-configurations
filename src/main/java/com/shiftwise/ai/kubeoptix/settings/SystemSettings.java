@@ -9,6 +9,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 @Entity
@@ -40,6 +42,13 @@ public class SystemSettings extends PanacheEntityBase {
     @Column(name = "default_extraction_method")
     public ExtractionMethod defaultExtractionMethod = ExtractionMethod.ML;
 
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @Column(name = "created_at")
     public LocalDateTime createdAt;
+
+    // Timestamp is managed by the application on every insert and update.
+    @PrePersist
+    @PreUpdate
+    void touchCreatedAt() {
+        createdAt = LocalDateTime.now();
+    }
 }
