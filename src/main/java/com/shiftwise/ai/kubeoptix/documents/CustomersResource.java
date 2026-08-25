@@ -17,7 +17,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-@Path("/customers")
+@Path("/costumers-list")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 public class CustomersResource {
@@ -39,7 +39,7 @@ public class CustomersResource {
         Customer customer = new Customer();
         apply(request, customer);
         customer.persist();
-        return Response.created(URI.create("/customers/" + customer.id)).entity(PersonResponse.from(customer)).build();
+        return Response.created(URI.create("/costumers-list/" + customer.id)).entity(PersonResponse.from(customer)).build();
     }
 
     @PUT

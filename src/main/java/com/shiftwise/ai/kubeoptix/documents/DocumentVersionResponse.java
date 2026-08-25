@@ -7,8 +7,9 @@ public record DocumentVersionResponse(
         UUID id,
         String title,
         String projectManager,
+        String costumer,
         UUID authorId,
-        UUID customerId,
+        UUID costumersListId,
         UUID versionId,
         LocalDateTime createdAt) {
 
@@ -17,6 +18,7 @@ public record DocumentVersionResponse(
                 documentVersion.id,
                 documentVersion.title,
                 documentVersion.projectManager,
+                documentVersion.costumer,
                 documentVersion.author.id,
                 documentVersion.customer.id,
                 documentVersion.version.id,

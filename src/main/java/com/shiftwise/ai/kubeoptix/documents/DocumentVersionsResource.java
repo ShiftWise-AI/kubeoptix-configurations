@@ -72,15 +72,16 @@ public class DocumentVersionsResource {
     }
 
     private static void apply(DocumentVersionRequest request, DocumentVersion documentVersion) {
-        if (request == null || isBlank(request.title()) || isBlank(request.projectManager())
-                || request.authorId() == null || request.customerId() == null || request.versionId() == null) {
-            throw new BadRequestException("title, projectManager, authorId, customerId and versionId are required");
+        if (request == null || isBlank(request.title()) || isBlank(request.projectManager()) || isBlank(request.costumer())
+                || request.authorId() == null || request.costumersListId() == null || request.versionId() == null) {
+            throw new BadRequestException("title, projectManager, costumer, authorId, costumersListId and versionId are required");
         }
 
         documentVersion.title = request.title();
         documentVersion.projectManager = request.projectManager();
+        documentVersion.costumer = request.costumer();
         documentVersion.author = requiredAuthor(request.authorId());
-        documentVersion.customer = requiredCustomer(request.customerId());
+        documentVersion.customer = requiredCustomer(request.costumersListId());
         documentVersion.version = requiredVersion(request.versionId());
     }
 

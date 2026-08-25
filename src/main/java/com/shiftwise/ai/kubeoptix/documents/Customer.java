@@ -16,7 +16,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "costumers")
+@Table(name = "costumers_list")
 public class Customer extends PanacheEntityBase {
 
     @Id

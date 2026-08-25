@@ -33,8 +33,11 @@ public class DocumentVersion extends PanacheEntityBase {
     @JoinColumn(name = "author_id", nullable = false)
     public Author author;
 
+    @Column(name = "costumer", nullable = false)
+    public String costumer;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "costumers", nullable = false)
+    @JoinColumn(name = "costumers_list", nullable = false)
     public Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

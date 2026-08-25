@@ -16,9 +16,11 @@ class DocumentsOpenApiTest {
                 .then()
                 .statusCode(200)
                 .body(containsString("/authors"))
-                .body(containsString("/customers"))
+                .body(containsString("/costumers-list"))
                 .body(containsString("/versions"))
                 .body(containsString("/document-versions"))
+                .body(containsString("costumer"))
+                .body(containsString("costumersListId"))
                 .body(containsString("post"))
                 .body(containsString("put"))
                 .body(containsString("delete"));
