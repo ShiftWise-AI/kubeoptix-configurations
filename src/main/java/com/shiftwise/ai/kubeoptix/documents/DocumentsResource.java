@@ -3,6 +3,10 @@ package com.shiftwise.ai.kubeoptix.documents;
 import java.net.URI;
 import java.util.List;
 
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
@@ -12,6 +16,7 @@ import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -63,8 +68,15 @@ public class DocumentsResource {
     @DELETE
     @Path("/{documentName}")
     @Transactional
-    public Response delete(String documentName) {
-        requiredDocument(documentName).delete();
+    @Operation(summary = "Delete a document and its versions", description = "Deletes every version associated with the document before deleting the document.")
+    @APIResponse(responseCode = "204", description = "Document and its versions were deleted.")
+    @APIResponse(responseCode = "404", description = "Document was not found.")
+        public Response delete(
+            @Parameter(description = "Unique document name used as the deletion key.", example = "monthly-cost-report")
+            @PathParam("documentName") String documentName) {
+        Document document = requiredDocument(documentName);
+        Version.delete("document.documentName", documentName);
+        document.delete();
         return Response.noContent().build();
     }
 
