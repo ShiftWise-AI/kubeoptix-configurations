@@ -23,12 +23,14 @@ import jakarta.ws.rs.core.Response;
 public class VersionsResource {
 
     @GET
+    @Transactional
     public List<VersionResponse> list() {
         return Version.<Version>listAll().stream().map(VersionResponse::from).toList();
     }
 
     @GET
     @Path("/{id}")
+    @Transactional
     public VersionResponse get(UUID id) {
         return VersionResponse.from(requiredVersion(id));
     }

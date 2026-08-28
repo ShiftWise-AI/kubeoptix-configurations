@@ -10,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 @Entity
@@ -45,10 +44,8 @@ public class SystemSettings extends PanacheEntityBase {
     @Column(name = "created_at")
     public LocalDateTime createdAt;
 
-    // Timestamp is managed by the application on every insert and update.
     @PrePersist
-    @PreUpdate
-    void touchCreatedAt() {
+    void setCreatedAt() {
         createdAt = LocalDateTime.now();
     }
 }
