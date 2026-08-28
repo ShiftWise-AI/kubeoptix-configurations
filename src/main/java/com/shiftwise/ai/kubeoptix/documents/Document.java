@@ -40,9 +40,6 @@ public class Document extends PanacheEntityBase {
     @JoinColumn(name = "costumers_list", nullable = false)
     public Customer customer;
 
-    @Column(name = "markdown_content", columnDefinition = "text")
-    public String markdownContent;
-
     @OneToMany(mappedBy = "document")
     public List<Version> versions = new ArrayList<>();
 

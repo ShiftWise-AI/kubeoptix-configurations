@@ -8,6 +8,5 @@ public record DocumentRequest(
         String projectManager,
         String costumer,
         UUID authorId,
-        UUID costumersListId,
-        String markdownContent) {
+        UUID costumersListId) {
 }

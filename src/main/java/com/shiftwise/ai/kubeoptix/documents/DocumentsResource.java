@@ -88,7 +88,6 @@ public class DocumentsResource {
         document.title = request.title();
         document.projectManager = request.projectManager();
         document.costumer = request.costumer();
-        document.markdownContent = request.markdownContent();
         document.author = requiredAuthor(request.authorId());
         document.customer = requiredCustomer(request.costumersListId());
     }

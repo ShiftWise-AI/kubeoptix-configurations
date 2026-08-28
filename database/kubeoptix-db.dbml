@@ -8,7 +8,6 @@ Table documents {
   author_id uuid [not null, ref: > authors.id]
   costumer varchar [not null]
   costumers_list uuid [not null, ref: > costumers_list.id]
-  markdown_content text [null]
   created_at timestamp [default: `now()`]
 }
 

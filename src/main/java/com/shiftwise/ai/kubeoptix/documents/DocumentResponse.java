@@ -10,7 +10,6 @@ public record DocumentResponse(
         String costumer,
         UUID authorId,
         UUID costumersListId,
-        String markdownContent,
         LocalDateTime createdAt) {
 
     static DocumentResponse from(Document document) {
@@ -21,7 +20,6 @@ public record DocumentResponse(
                 document.costumer,
                 document.author.id,
                 document.customer.id,
-                document.markdownContent,
                 document.createdAt);
     }
 }
