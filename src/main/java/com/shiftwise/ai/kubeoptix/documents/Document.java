@@ -1,27 +1,27 @@
 package com.shiftwise.ai.kubeoptix.documents;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "documents_versions")
-public class DocumentVersion extends PanacheEntityBase {
+@Table(name = "documents")
+public class Document extends PanacheEntityBase {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    public UUID id;
+    @Column(name = "document_name", nullable = false, unique = true)
+    public String documentName;
 
     @Column(nullable = false)
     public String title;
@@ -40,9 +40,11 @@ public class DocumentVersion extends PanacheEntityBase {
     @JoinColumn(name = "costumers_list", nullable = false)
     public Customer customer;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "version_id", nullable = false)
-    public Version version;
+    @Column(name = "markdown_content", columnDefinition = "text")
+    public String markdownContent;
+
+    @OneToMany(mappedBy = "document")
+    public List<Version> versions = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     public LocalDateTime createdAt;

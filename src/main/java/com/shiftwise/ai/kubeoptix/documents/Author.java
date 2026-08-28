@@ -36,7 +36,7 @@ public class Author extends PanacheEntityBase {
     public LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "author")
-    public List<DocumentVersion> documentVersions = new ArrayList<>();
+    public List<Document> documents = new ArrayList<>();
 
     @PrePersist
     void setCreatedAt() {

@@ -68,10 +68,20 @@ public class VersionsResource {
     }
 
     private static void apply(VersionRequest request, Version version) {
-        if (request == null || request.versionNumber() == null || request.versionNumber().isBlank()) {
-            throw new BadRequestException("versionNumber is required");
+        if (request == null || request.versionNumber() == null || request.versionNumber().isBlank()
+                || request.documentName() == null || request.documentName().isBlank()) {
+            throw new BadRequestException("versionNumber and documentName are required");
         }
         version.versionNumber = request.versionNumber();
         version.markdownContent = request.markdownContent();
+        version.document = requiredDocument(request.documentName());
+    }
+
+    private static Document requiredDocument(String documentName) {
+        Document document = Document.findById(documentName);
+        if (document == null) {
+            throw new NotFoundException("Document not found: " + documentName);
+        }
+        return document;
     }
 }
