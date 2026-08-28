@@ -119,7 +119,11 @@ wait_for_application_build() {
   fi
 
   echo "Waiting for build '${build_name}' to finish."
-  deadline=$((SECONDS + APPLICATION_BUILD_TIMEOUT_SECONDS))
+  local start_seconds="${SECONDS}"
+  deadline=$((start_seconds + APPLICATION_BUILD_TIMEOUT_SECONDS))
+
+  local last_phase=""
+  local last_heartbeat="${start_seconds}"
 
   while (( SECONDS < deadline )); do
     build_phase="$(oc get builds.build.openshift.io "${build_name}" \
@@ -146,6 +150,12 @@ wait_for_application_build() {
         ;;
       New|Pending|Running)
         missing_polls=0
+        if [[ "${build_phase}" != "${last_phase}" ]]; then
+          echo "Build '${build_name}' is in phase '${build_phase}'."
+        elif (( SECONDS - last_heartbeat >= 60 )); then
+          echo "Build '${build_name}' is still '${build_phase}' after $((SECONDS - start_seconds))s (native builds can take a while)."
+          last_heartbeat="${SECONDS}"
+        fi
         ;;
       *)
         missing_polls=0
@@ -153,6 +163,7 @@ wait_for_application_build() {
         ;;
     esac
 
+    last_phase="${build_phase}"
     sleep "${APPLICATION_BUILD_POLL_INTERVAL_SECONDS}"
   done
 
@@ -165,6 +176,9 @@ start_application_build() {
   local kube_client="${1}"
   local buildconfig_name=""
   local build_name=""
+  local last_version=""
+  local latest_build_name=""
+  local latest_build_phase=""
 
   if [[ "${kube_client}" != "oc" ]]; then
     echo "Skipping build trigger because OpenShift CLI (oc) is not available."
@@ -179,6 +193,29 @@ start_application_build() {
   if [[ -z "${buildconfig_name}" ]]; then
     echo "No BuildConfig found for release '${APPLICATION_RELEASE_NAME}' in namespace '${NAMESPACE}'. Skipping build trigger."
     return
+  fi
+
+  # The chart's ConfigChange/ImageChange triggers may have already started a build
+  # as a side effect of 'helm upgrade --install'. Reuse it instead of queuing a
+  # redundant manual build that would otherwise sit behind it (runPolicy: Serial)
+  # and make the script look stuck.
+  last_version="$(oc get buildconfig "${buildconfig_name}" \
+    --namespace "${NAMESPACE}" \
+    --output 'jsonpath={.status.lastVersion}' 2>/dev/null || true)"
+
+  if [[ -n "${last_version}" && "${last_version}" != "0" ]]; then
+    latest_build_name="${buildconfig_name}-${last_version}"
+    latest_build_phase="$(oc get builds.build.openshift.io "${latest_build_name}" \
+      --namespace "${NAMESPACE}" \
+      --output 'jsonpath={.status.phase}' 2>/dev/null || true)"
+
+    case "${latest_build_phase}" in
+      New|Pending|Running)
+        echo "Build '${latest_build_name}' was already triggered automatically (phase '${latest_build_phase}'). Waiting for it instead of starting a new one."
+        wait_for_application_build "${kube_client}" "${latest_build_name}"
+        return
+        ;;
+    esac
   fi
 
   echo "Starting a new build from BuildConfig '${buildconfig_name}'."
