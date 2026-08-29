@@ -231,12 +231,61 @@ start_application_build() {
   wait_for_application_build "${kube_client}" "${build_name}"
 }
 
+get_application_image_id() {
+  local kube_client="${1}"
+  local image_id=""
+
+  if [[ "${kube_client}" == "oc" ]]; then
+    image_id="$(oc get istag "${APPLICATION_RELEASE_NAME}:latest" \
+      --namespace "${NAMESPACE}" \
+      --output 'jsonpath={.image.metadata.name}' 2>/dev/null || true)"
+
+    if [[ -z "${image_id}" ]]; then
+      image_id="$(oc get is "${APPLICATION_RELEASE_NAME}" \
+        --namespace "${NAMESPACE}" \
+        --output 'jsonpath={.status.tags[?(@.tag=="latest")].items[0].image}' 2>/dev/null || true)"
+    fi
+  fi
+
+  if [[ -z "${image_id}" && -n "${kube_client}" ]]; then
+    image_id="$("${kube_client}" get pods \
+      --namespace "${NAMESPACE}" \
+      --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" \
+      --output 'jsonpath={.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || true)"
+  fi
+
+  echo "${image_id}"
+}
+
+restart_application_workload() {
+  local kube_client="${1}"
+  local workload=""
+
+  if [[ -z "${kube_client}" ]]; then
+    return
+  fi
+
+  workload="$("${kube_client}" get statefulset,deployment \
+    --namespace "${NAMESPACE}" \
+    --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" \
+    --output 'jsonpath={.items[0].kind}/{.items[0].metadata.name}' 2>/dev/null || true)"
+  workload="$(echo "${workload}" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ -z "${workload}" || "${workload}" == "/" ]]; then
+    if "${kube_client}" get statefulset "${APPLICATION_RELEASE_NAME}" --namespace "${NAMESPACE}" >/dev/null 2>&1; then
+      workload="statefulset/${APPLICATION_RELEASE_NAME}"
+    fi
+  fi
+
+  if [[ -n "${workload}" && "${workload}" != "/" ]]; then
+    echo "Triggering rollout restart for '${workload}' in namespace '${NAMESPACE}'."
+    "${kube_client}" rollout restart "${workload}" --namespace "${NAMESPACE}"
+  fi
+}
+
 wait_for_application_rollout() {
   local kube_client="${1}"
   local workload=""
-  local deadline="0"
-  local desired_replicas=""
-  local ready_replicas=""
 
   if [[ "${WAIT_FOR_APPLICATION_ROLLOUT}" != "true" ]]; then
     return
@@ -249,28 +298,19 @@ wait_for_application_rollout() {
   workload="$(echo "${workload}" | tr '[:upper:]' '[:lower:]')"
 
   if [[ -z "${workload}" || "${workload}" == "/" ]]; then
-    echo "No workload found for release '${APPLICATION_RELEASE_NAME}' in namespace '${NAMESPACE}'. Skipping rollout wait."
-    return
+    if "${kube_client}" get statefulset "${APPLICATION_RELEASE_NAME}" --namespace "${NAMESPACE}" >/dev/null 2>&1; then
+      workload="statefulset/${APPLICATION_RELEASE_NAME}"
+    else
+      echo "No workload found for release '${APPLICATION_RELEASE_NAME}' in namespace '${NAMESPACE}'. Skipping rollout wait."
+      return
+    fi
   fi
 
   echo "Waiting for '${workload}' to become available in namespace '${NAMESPACE}'."
-  deadline=$((SECONDS + APPLICATION_ROLLOUT_TIMEOUT_SECONDS))
-
-  while (( SECONDS < deadline )); do
-    desired_replicas="$("${kube_client}" get "${workload}" \
-      --namespace "${NAMESPACE}" \
-      --output 'jsonpath={.spec.replicas}' 2>/dev/null || true)"
-    ready_replicas="$("${kube_client}" get "${workload}" \
-      --namespace "${NAMESPACE}" \
-      --output 'jsonpath={.status.readyReplicas}' 2>/dev/null || true)"
-
-    if [[ -n "${desired_replicas}" && "${ready_replicas:-0}" == "${desired_replicas}" ]]; then
-      echo "Workload '${workload}' is ready (${ready_replicas}/${desired_replicas})."
-      return
-    fi
-
-    sleep "${APPLICATION_ROLLOUT_POLL_INTERVAL_SECONDS}"
-  done
+  if "${kube_client}" rollout status "${workload}" --namespace "${NAMESPACE}" --timeout="${APPLICATION_ROLLOUT_TIMEOUT_SECONDS}s"; then
+    echo "Workload '${workload}' is ready."
+    return
+  fi
 
   echo "ERROR: Timed out waiting for '${workload}' to become ready after ${APPLICATION_ROLLOUT_TIMEOUT_SECONDS}s." >&2
   "${kube_client}" get pods --namespace "${NAMESPACE}" \
@@ -422,23 +462,63 @@ if [[ "${INSTALL_DATABASE}" == "true" ]]; then
 fi
 
 if [[ "${INSTALL_APPLICATION}" == "true" ]]; then
-  APPLICATION_HELM_COMMAND=(
-    helm upgrade --install "${APPLICATION_RELEASE_NAME}" "${APPLICATION_CHART_PATH}"
+  BASE_APPLICATION_HELM_ARGS=(
     --namespace "${NAMESPACE}"
     --create-namespace
     --set "buildConfig.sourceSecret.enabled=${BUILD_SOURCE_SECRET_ENABLED}"
   )
 
   if [[ "${BUILD_SOURCE_SECRET_ENABLED}" == "true" ]]; then
-    APPLICATION_HELM_COMMAND+=(--set-string "buildConfig.sourceSecret.name=${GIT_SOURCE_SECRET_NAME}")
+    BASE_APPLICATION_HELM_ARGS+=(--set-string "buildConfig.sourceSecret.name=${GIT_SOURCE_SECRET_NAME}")
   fi
 
-  APPLICATION_HELM_COMMAND+=("${APPLICATION_HELM_ARGS_ARRAY[@]}")
+  BASE_APPLICATION_HELM_ARGS+=("${APPLICATION_HELM_ARGS_ARRAY[@]}")
 
-  "${APPLICATION_HELM_COMMAND[@]}"
+  statefulset_exists=""
+  previous_image_id=""
+  if [[ -n "${KUBE_CLIENT}" ]]; then
+    statefulset_exists="$("${KUBE_CLIENT}" get statefulset \
+      --namespace "${NAMESPACE}" \
+      --selector "app.kubernetes.io/instance=${APPLICATION_RELEASE_NAME}" \
+      --output 'jsonpath={.items[0].metadata.name}' 2>/dev/null || true)"
+    if [[ -z "${statefulset_exists}" ]]; then
+      statefulset_exists="$("${KUBE_CLIENT}" get statefulset "${APPLICATION_RELEASE_NAME}" \
+        --namespace "${NAMESPACE}" \
+        --output 'jsonpath={.metadata.name}' 2>/dev/null || true)"
+    fi
+    previous_image_id="$(get_application_image_id "${KUBE_CLIENT}")"
+  fi
+
+  if [[ "${KUBE_CLIENT}" == "oc" ]]; then
+    if [[ -z "${statefulset_exists}" ]]; then
+      echo "StatefulSet does not exist yet. Deploying build resources (BuildConfig, ImageStream) before building."
+      helm upgrade --install "${APPLICATION_RELEASE_NAME}" "${APPLICATION_CHART_PATH}" \
+        "${BASE_APPLICATION_HELM_ARGS[@]}" \
+        --set "statefulSet.enabled=false"
+    else
+      echo "Existing StatefulSet found ('${statefulset_exists}'). Updating build resources while keeping workload active."
+      helm upgrade --install "${APPLICATION_RELEASE_NAME}" "${APPLICATION_CHART_PATH}" \
+        "${BASE_APPLICATION_HELM_ARGS[@]}" \
+        --set "statefulSet.enabled=true"
+    fi
+
+    start_application_build "${KUBE_CLIENT}"
+    new_image_id="$(get_application_image_id "${KUBE_CLIENT}")"
+  else
+    new_image_id="${previous_image_id}"
+  fi
+
+  echo "Deploying application workload (StatefulSet, Service, etc.)."
+  helm upgrade --install "${APPLICATION_RELEASE_NAME}" "${APPLICATION_CHART_PATH}" \
+    "${BASE_APPLICATION_HELM_ARGS[@]}" \
+    --set "statefulSet.enabled=true"
 
   if [[ -n "${KUBE_CLIENT}" ]]; then
-    start_application_build "${KUBE_CLIENT}"
+    if [[ -n "${previous_image_id}" && -n "${new_image_id}" && "${previous_image_id}" != "${new_image_id}" ]]; then
+      echo "New image version detected (${previous_image_id} -> ${new_image_id})."
+      restart_application_workload "${KUBE_CLIENT}"
+    fi
+
     wait_for_application_rollout "${KUBE_CLIENT}"
   fi
 fi

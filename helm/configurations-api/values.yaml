@@ -1,5 +1,8 @@
 replicaCount: 1
 
+statefulSet:
+  enabled: true
+
 image:
   repository: image-registry.openshift-image-registry.svc:5000/shiftwise-ai/kubeoptix-configurations
   tag: latest
