@@ -50,7 +50,33 @@ cleanup_resources() {
 }
 
 if [[ "${KUBE_CLIENT}" == "oc" ]]; then
-  cleanup_resources builds.build.openshift.io
+  # Skip builds that are still active so cleanup never aborts an in-progress build
+  # (relevant when RUN_POST_INSTALL_CLEANUP runs without waiting for the build first).
+  ACTIVE_BUILD_REGEX='^(New|Pending|Running)$'
+  cleanup_builds() {
+    local names=()
+
+    mapfile -t names < <(
+      "${KUBE_CLIENT}" get builds.build.openshift.io \
+        --namespace "${NAMESPACE}" \
+        --output 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{.status.phase}{"\n"}{end}' 2>/dev/null \
+        | awk -v phase_re="${ACTIVE_BUILD_REGEX}" '$2 !~ phase_re { print $1 }' \
+        | grep -E "${CLEANUP_REGEX}" \
+        | grep -vE "${PROTECTED_REGEX}" || true
+    )
+
+    if (( ${#names[@]} == 0 )); then
+      echo "No completed builds.build.openshift.io matching '${CLEANUP_REGEX}' to remove in namespace '${NAMESPACE}'."
+      return
+    fi
+
+    echo "Removing builds.build.openshift.io: ${names[*]}"
+    "${KUBE_CLIENT}" delete builds.build.openshift.io \
+      --namespace "${NAMESPACE}" \
+      --ignore-not-found \
+      "${names[@]}"
+  }
+  cleanup_builds
 fi
 
 cleanup_resources secret

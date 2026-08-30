@@ -1,13 +1,13 @@
 // KubeOptix database schema
 // Domain: Kubernetes cost/resource optimization platform
 
-Table documents_versions {
-  id uuid [pk, default: `gen_random_uuid()`]
+Table documents {
+  document_name varchar [pk, unique, not null]
   title varchar [not null]
   project_manager varchar [not null]
   author_id uuid [not null, ref: > authors.id]
-  costumers varchar [not null, ref: > costumers.id]
-  version_id uuid [not null, ref: > versions.id]
+  costumer varchar [not null]
+  costumers_list uuid [not null, ref: > costumers_list.id]
   created_at timestamp [default: `now()`]
 }
 
@@ -15,6 +15,7 @@ Table versions {
   id uuid [pk, default: `gen_random_uuid()`]
   version_number varchar [not null]
   markdown_content text [null]
+  document_name varchar [not null, ref: > documents.document_name]
   created_at timestamp [default: `now()`]
 }
 
@@ -27,7 +28,7 @@ Table authors {
   created_at timestamp [default: `now()`]
 }
 
-Table costumers {
+Table costumers_list {
   id uuid [pk, default: `gen_random_uuid()`]
   name varchar [not null]
   position varchar [not null]
