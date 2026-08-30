@@ -71,10 +71,12 @@ public class VersionsResource {
 
     private static void apply(VersionRequest request, Version version) {
         if (request == null || request.versionNumber() == null || request.versionNumber().isBlank()
+                || request.description() == null || request.description().isBlank()
                 || request.documentName() == null || request.documentName().isBlank()) {
-            throw new BadRequestException("versionNumber and documentName are required");
+            throw new BadRequestException("versionNumber, description and documentName are required");
         }
         version.versionNumber = request.versionNumber();
+        version.description = request.description();
         version.markdownContent = request.markdownContent();
         version.document = requiredDocument(request.documentName());
     }

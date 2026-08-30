@@ -26,6 +26,9 @@ public class Version extends PanacheEntityBase {
     @Column(name = "version_number", nullable = false)
     public String versionNumber;
 
+    @Column(name = "description", nullable = false)
+    public String description;
+
     // Markdown reports routinely exceed 255 chars, so the column must not use the varchar(255) default.
     @Column(name = "markdown_content", columnDefinition = "text")
     public String markdownContent;
