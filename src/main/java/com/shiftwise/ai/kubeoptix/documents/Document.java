@@ -23,8 +23,7 @@ public class Document extends PanacheEntityBase {
     @Column(name = "document_name", nullable = false, unique = true)
     public String documentName;
 
-    // Business identity of a document: only one row may exist per title.
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     public String title;
 
     @Column(name = "project_manager", nullable = false)

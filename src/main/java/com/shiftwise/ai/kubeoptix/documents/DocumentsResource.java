@@ -46,12 +46,6 @@ public class DocumentsResource {
         if (Document.findById(request.documentName()) != null) {
             throw new BadRequestException("documentName already exists: " + request.documentName());
         }
-        Document existingByTitle = findByTitle(request.title());
-        if (existingByTitle != null) {
-            // Same logical document already registered: update it instead of creating a duplicate row.
-            apply(request, existingByTitle);
-            return Response.ok(DocumentResponse.from(existingByTitle)).build();
-        }
         Document document = new Document();
         document.documentName = request.documentName();
         apply(request, document);
@@ -67,16 +61,8 @@ public class DocumentsResource {
     public DocumentResponse update(String documentName, DocumentRequest request) {
         validate(request, false);
         Document document = requiredDocument(documentName);
-        Document conflicting = findByTitle(request.title());
-        if (conflicting != null && !conflicting.documentName.equals(document.documentName)) {
-            throw new BadRequestException("title already exists for another document: " + request.title());
-        }
         apply(request, document);
         return DocumentResponse.from(document);
-    }
-
-    private static Document findByTitle(String title) {
-        return Document.find("lower(title) = ?1", title.trim().toLowerCase()).firstResult();
     }
 
     @DELETE

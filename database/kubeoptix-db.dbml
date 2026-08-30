@@ -3,7 +3,7 @@
 
 Table documents {
   document_name varchar [pk, unique, not null]
-  title varchar [unique, not null]
+  title varchar [not null]
   project_manager varchar [not null]
   author_id uuid [not null, ref: > authors.id]
   costumer varchar [not null]
