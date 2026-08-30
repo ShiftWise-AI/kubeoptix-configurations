@@ -14,6 +14,7 @@ Table documents {
 Table versions {
   id uuid [pk, default: `gen_random_uuid()`]
   version_number varchar [not null]
+  description varchar [not null]
   markdown_content text [null]
   document_name varchar [not null, ref: > documents.document_name]
   created_at timestamp [default: `now()`]
