@@ -45,6 +45,7 @@ Table system_setings {
   llm_model varchar [null]
   status varchar [default: `enum: 'active', 'inactive'`]
   default_extraction_method varchar [default: `enum: 'ml', 'llm'`]
+  logo bytea [null, note: 'Application logo image bytes']
   created_at timestamp [default: `now()`]
 
 }

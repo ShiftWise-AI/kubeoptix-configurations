@@ -22,6 +22,8 @@ public record SystemSettingsResponse(
         SettingsStatus status,
     @Schema(description = "Default extraction method.", example = "llm")
         ExtractionMethod defaultExtractionMethod,
+    @Schema(description = "Indicates whether a logo image is stored. Use /system-settings/logo to download it.", example = "true")
+        boolean hasLogo,
     @Schema(description = "Record creation timestamp.", example = "2026-08-22T21:30:00")
         LocalDateTime createdAt) {
 
@@ -35,6 +37,7 @@ public record SystemSettingsResponse(
                 settings.llmModel,
                 settings.status,
                 settings.defaultExtractionMethod,
+                settings.logo != null && settings.logo.length > 0,
                 settings.createdAt);
     }
 }

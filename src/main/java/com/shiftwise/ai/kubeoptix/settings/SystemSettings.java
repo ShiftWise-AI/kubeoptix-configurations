@@ -41,6 +41,10 @@ public class SystemSettings extends PanacheEntityBase {
     @Column(name = "default_extraction_method")
     public ExtractionMethod defaultExtractionMethod = ExtractionMethod.ML;
 
+    // Raw image bytes, stored as bytea in PostgreSQL.
+    @Column(name = "logo")
+    public byte[] logo;
+
     @Column(name = "created_at")
     public LocalDateTime createdAt;
 
