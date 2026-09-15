@@ -1,502 +1,332 @@
 # KubeOptix Configurations API
 
-A Red Hat Quarkus-based REST API for managing system configurations and document metadata in the KubeOptix platform. Provides endpoints for system settings, document management, author tracking, and customer information with health monitoring and OpenAPI documentation.
+API REST em Java com Quarkus para gerenciar configurações do sistema e o catálogo de documentos do KubeOptix. A aplicação expõe operações de CRUD para documentos, versões, autores, clientes e uma única configuração global do sistema, além de endpoints de health check e documentação OpenAPI.
 
-## Features
+## O que a aplicação faz
 
-- **System Settings Management**: Create, update, and retrieve system-wide configuration including language, API keys, and extraction methods.
-- **Document Management**: Full CRUD operations for documents with version control and metadata tracking.
-- **Version Control**: Track document versions with markdown content and descriptions.
-- **Author & Customer Tracking**: Manage authors and customers associated with documents.
-- **Health Checks**: Liveness, readiness, and startup probe endpoints for Kubernetes integration.
-- **OpenAPI Documentation**: Automatically generated Swagger UI for API exploration.
-- **PostgreSQL Persistence**: Data stored in PostgreSQL with Hibernate ORM (Panache).
-- **Container-Ready**: Pre-configured for Docker/Podman with native and JVM image options.
-- **Kubernetes-Ready**: Helm charts for OpenShift/Kubernetes deployment with automatic rollout management.
+A aplicação centraliza as informações de configuração operacionais da plataforma e o conteúdo documental que a interface ou outros serviços podem consultar.
 
-## Requirements
+### 1) Configurações do sistema
+A entidade `SystemSettings` guarda os dados globais do ambiente, como:
 
-- **Java**: JDK 25 or later
-- **Maven**: 3.9 or later
-- **Container Runtime**: Podman or Docker (for building images)
-- **Kubernetes/OpenShift**: 1.21+ (for production deployment)
-- **Helm**: 3.0+ (for Kubernetes deployment)
-- **PostgreSQL**: 18+ (database backend; provided via Helm chart)
+- idioma padrão
+- chave e modelo do Cursor
+- chave e modelo do provedor LLM
+- status do sistema (`active` / `inactive`)
+- método de extração padrão (`ml` / `llm`)
+- logo da aplicação em bytes
+- timestamps de criação
 
-## Technologies
+A API oferece uma única instância de configurações para o sistema, com endpoints para criar/atualizar, consultar status e armazenar a logo.
 
-- **Runtime**: Red Hat build of Quarkus `3.33.3.redhat-00001`
-- **Language**: Java 25 (LTS)
-- **API Framework**: Quarkus REST (JAX-RS) with MicroProfile OpenAPI
-- **ORM**: Hibernate with Panache (simplified persistence)
-- **Database**: PostgreSQL 18
-- **Container**: RHEL 10 UBI base images
-- **Orchestration**: Kubernetes/OpenShift with Helm
-- **Health Checks**: MicroProfile Health
-- **Testing**: JUnit 5 with REST Assured
+### 2) Gestão documental
+A área `documents` concentra o cadastro de documentos e seus metadados, incluindo:
 
-## Project Structure
+- `documentName` como identificador único
+- `title`
+- `projectManager`
+- `costumer`
+- `authorId`
+- `costumersListId`
+- data de criação
+
+Cada documento pode ter múltiplas versões associadas.
+
+### 3) Controle de versões
+A entidade `Version` guarda o histórico textual de um documento:
+
+- número de versão
+- descrição
+- conteúdo em Markdown
+- referência ao documento pai
+- data de criação
+
+A regra de negócio implementada evita criar uma nova revisão quando a descrição e o conteúdo são idênticos ao último registro.
+
+### 4) Autores e clientes
+Os recursos `/authors` e `/costumers-list` gerenciam pessoas envolvidas com os documentos. O nome do segundo endpoint reflete o pacote e a convenção atual do projeto (`costumers-list`, com grafia preservada no código).
+
+### 5) Observabilidade
+A aplicação expõe endpoints do MicroProfile Health para uso em Kubernetes/OpenShift:
+
+- `/q/health/live`
+- `/q/health/ready`
+- `/q/health/started`
+
+## Stack e tecnologias
+
+- Java 25
+- Red Hat build of Quarkus 3.33.3.redhat-00001
+- REST com Quarkus REST / JAX-RS
+- Hibernate ORM + Panache
+- PostgreSQL
+- OpenAPI / Swagger UI
+- Health checks com SmallRye Health
+- Helm para deploy no cluster
+
+## Estrutura do projeto
 
 ```text
 kubeoptix-configurations/
 ├── src/
 │   ├── main/
-│   │   ├── java/com/shiftwise/ai/kubeoptix/
-│   │   │   ├── documents/          # Document, Version, Author, Customer resources
-│   │   │   ├── health/             # Liveness, Readiness, Startup probes
-│   │   │   └── settings/           # System Settings resource and enums
+│   │   ├── java/
+│   │   │   └── com/shiftwise/ai/kubeoptix/
+│   │   │       ├── documents/      # Documentos, versões, autores e clientes
+│   │   │       ├── health/         # Health checks
+│   │   │       └── settings/       # Configuração global e enums
 │   │   └── resources/
-│   │       └── application.properties   # Quarkus configuration
+│   │       └── application.properties
 │   └── test/
-│       └── java/                   # Integration tests
+│       └── java/
 ├── helm/
-│   ├── configurations-api/         # Application Helm chart
-│   └── postgresql/                 # PostgreSQL database Helm chart
-├── Containerfile                   # JVM container image definition
-├── Containerfile.native            # Native image container definition
-├── compose.yaml                    # Local Docker Compose environment
-├── install.sh                      # Automated OpenShift deployment script
-├── post-install-cleanup.sh         # Cleanup script for temp resources
-├── pom.xml                         # Maven build configuration
-└── README.md                       # This file
+│   ├── configurations-api/
+│   └── postgresql/
+├── Containerfile
+├── Containerfile.native
+├── compose.yaml
+├── install.sh
+├── post-install-cleanup.sh
+├── mvnw
+├── pom.xml
+├── README.md
+└── database/
+    └── kubeoptix-db.dbml
 ```
 
-## Configuration
+## Endpoints principais
 
-### Quarkus Application Properties
+### Configurações do sistema
 
-Key configuration parameters in `src/main/resources/application.properties`:
+| Método | Endpoint | Descrição |
+|---|---|---|
+| PUT | `/system-settings` | Cria ou atualiza a única configuração do sistema |
+| PATCH | `/system-settings` | Atualiza apenas os campos enviados |
+| GET | `/system-settings` | Retorna a configuração completa |
+| GET | `/system-settings/status` | Retorna apenas o status |
+| PUT | `/system-settings/logo` | Upload da logo em bytes |
+| GET | `/system-settings/logo` | Download da logo |
+| DELETE | `/system-settings/logo` | Remove a logo |
 
-| Property | Description | Default | Environment Variable |
-|----------|-------------|---------|----------------------|
-| `quarkus.application.name` | Application identifier | `kubeoptix-configurations` | — |
-| `quarkus.http.port` | HTTP port | `8000` | — |
-| `quarkus.http.host` | HTTP bind address | `0.0.0.0` | — |
-| `quarkus.datasource.db-kind` | Database type | `postgresql` | — |
-| `quarkus.datasource.username` | DB username | — | `POSTGRESQL_USER` |
-| `quarkus.datasource.password` | DB password | — | `POSTGRESQL_PASSWORD` |
-| `quarkus.datasource.jdbc.url` | JDBC connection URL | — | `POSTGRESQL_HOST`, `POSTGRESQL_PORT`, `POSTGRESQL_DATABASE` |
-| `quarkus.hibernate-orm.database.generation` | Schema generation strategy | `drop-and-create` | — |
+### Documentos
 
-### Environment Variables
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/documents` | Lista todos os documentos |
+| GET | `/documents/{documentName}` | Busca um documento por nome |
+| POST | `/documents` | Cria um documento |
+| PUT | `/documents/{documentName}` | Atualiza um documento |
+| DELETE | `/documents/{documentName}` | Remove o documento e suas versões |
 
-The application requires these environment variables (typically provided by the PostgreSQL Helm chart Secret):
+### Versões
 
-- `POSTGRESQL_USER`: Database user
-- `POSTGRESQL_PASSWORD`: Database password
-- `POSTGRESQL_HOST`: Database host (default: `kubeoptix-db`)
-- `POSTGRESQL_PORT`: Database port (default: `5432`)
-- `POSTGRESQL_DATABASE`: Database name (default: `kubeoptix`)
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/versions` | Lista todas as versões |
+| GET | `/versions/{id}` | Busca uma versão |
+| POST | `/versions` | Cria uma nova versão para um documento |
+| PUT | `/versions/{id}` | Atualiza uma versão |
+| DELETE | `/versions/{id}` | Remove uma versão |
 
-For local development, these are provided via `.env` file and `compose.yaml`.
+### Autores e clientes
 
-### Kubernetes/OpenShift Configuration
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/authors` | Lista autores |
+| GET | `/authors/{id}` | Busca autor |
+| POST | `/authors` | Cria autor |
+| PUT | `/authors/{id}` | Atualiza autor |
+| DELETE | `/authors/{id}` | Remove autor |
+| GET | `/costumers-list` | Lista clientes |
+| GET | `/costumers-list/{id}` | Busca cliente |
+| POST | `/costumers-list` | Cria cliente |
+| PUT | `/costumers-list/{id}` | Atualiza cliente |
+| DELETE | `/costumers-list/{id}` | Remove cliente |
 
-The Helm charts automatically configure:
+## Configuração e ambiente
 
-- **Service**: `configurations-api` on port `8000` (ClusterIP)
-- **Database Secret**: `kubeoptix-db` with PostgreSQL credentials
-- **StatefulSet**: Single replica with automatic image rollout triggers
-- **Health Probes**:
-  - Liveness: `/q/health/live` (20s delay, 10s period)
-  - Readiness: `/q/health/ready` (10s delay, 10s period)
-  - Startup: `/q/health/started` (5s delay, 5s period)
+O arquivo principal de configuração está em `src/main/resources/application.properties`:
 
-## Installation
+```properties
+quarkus.application.name=kubeoptix-configurations
+quarkus.http.port=8000
+quarkus.http.host=0.0.0.0
 
-### Prerequisites
+quarkus.smallrye-openapi.info-title=KubeOptix Configurations API
+quarkus.smallrye-openapi.info-version=1.0.0
 
-Verify cluster access:
+quarkus.datasource.db-kind=postgresql
+quarkus.datasource.username=${POSTGRESQL_USER}
+quarkus.datasource.password=${POSTGRESQL_PASSWORD}
+quarkus.datasource.jdbc.url=jdbc:postgresql://${POSTGRESQL_HOST:kubeoptix-db}:${POSTGRESQL_PORT:5432}/${POSTGRESQL_DATABASE}
+
+%dev.quarkus.datasource.jdbc.url=jdbc:postgresql://${POSTGRESQL_HOST:localhost}:${POSTGRESQL_PORT:5432}/${POSTGRESQL_DATABASE}
+quarkus.hibernate-orm.database.generation=drop-and-create
+```
+
+Variáveis esperadas:
 
 ```bash
-oc login <cluster-url>
-oc whoami
-helm version
+POSTGRESQL_USER
+POSTGRESQL_PASSWORD
+POSTGRESQL_HOST
+POSTGRESQL_PORT
+POSTGRESQL_DATABASE
 ```
 
-### Install via Helm Script (Recommended)
+Na prática, em desenvolvimento local o banco costuma estar em `localhost:5432` ou em um container/compose. Em cluster/OpenShift, normalmente as variáveis são injetadas por secret e pela Helm chart.
 
-The included `install.sh` script automates both database and application deployment:
+## Requisitos
+
+- JDK 25
+- Maven 3.9+
+- PostgreSQL acessível
+- Podman ou Docker para imagens locais
+- Helm 3 para deploy em Kubernetes/OpenShift
+
+## Executando localmente
+
+### 1) Preparar o banco
+O projeto espera que o PostgreSQL esteja disponível antes da inicialização. O mais simples é usar o compose do repositório:
 
 ```bash
-./install.sh
+podman compose up -d
 ```
 
-Default behavior:
-- Creates namespace `shiftwise-ai` if it doesn't exist
-- Installs PostgreSQL database (`kubeoptix-db` release)
-- Installs application (`kubeoptix-configurations` release)
-- Waits for build completion (1800 seconds timeout by default)
-- Applies automatic rollout on image updates
-
-Custom parameters:
-
-```bash
-NAMESPACE=custom-namespace \
-DATABASE_RELEASE_NAME=custom-db \
-APPLICATION_RELEASE_NAME=custom-api \
-INSTALL_DATABASE=true \
-INSTALL_APPLICATION=true \
-WAIT_FOR_APPLICATION_BUILD=true \
-APPLICATION_BUILD_TIMEOUT_SECONDS=1800 \
-./install.sh
-```
-
-### Manual Helm Installation
-
-If you prefer to install components separately:
-
-**Install PostgreSQL:**
-
-```bash
-helm install kubeoptix-db ./helm/postgresql \
-  --namespace shiftwise-ai \
-  --create-namespace
-```
-
-**Install Application:**
-
-```bash
-helm install kubeoptix-configurations ./helm/configurations-api \
-  --namespace shiftwise-ai
-```
-
-### Git Source Secret
-
-For OpenShift `BuildConfig` to clone the repository, a Git source secret must exist in namespace `github-auth` with name `gitlab` (configurable). The script automatically copies it to the target namespace.
-
-Verify the secret exists:
-
-```bash
-oc get secret gitlab -n github-auth
-```
-
-If it doesn't exist, create one:
-
-```bash
-oc create secret generic gitlab \
-  -n github-auth \
-  --from-literal=username=<username> \
-  --from-literal=password=<token>
-```
-
-## Helm Configuration
-
-### configurations-api Chart
-
-**Chart Name**: `kubeoptix-configurations`
-**Version**: `0.1.0`
-**App Version**: `0.1.0`
-
-**Key Resources Created**:
-- **StatefulSet**: Single-replica application pod with automatic image triggers
-- **Service**: ClusterIP service on port `8000` (name: `configurations-api`)
-- **ServiceAccount**: For pod identity and RBAC
-- **BuildConfig**: (OpenShift only) Triggers builds from Git repository
-- **ImageStream**: (OpenShift only) Tracks container images
-
-**Main Parameters** (in `helm/configurations-api/values.yaml`):
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `replicaCount` | Pod replicas | `1` |
-| `statefulSet.enabled` | Use StatefulSet | `true` |
-| `image.repository` | Container image repository | `image-registry.openshift-image-registry.svc:5000/shiftwise-ai/kubeoptix-configurations` |
-| `image.tag` | Image tag | `latest` |
-| `service.port` | Service port | `8000` |
-| `containerPort` | Container port | `8000` |
-| `database.secretName` | Secret containing DB credentials | `kubeoptix-db` |
-| `probes.liveness.*` | Liveness probe settings | Path: `/q/health/live` |
-| `probes.readiness.*` | Readiness probe settings | Path: `/q/health/ready` |
-| `probes.startup.*` | Startup probe settings | Path: `/q/health/started` |
-
-### postgresql Chart
-
-**Chart Name**: `kubeoptix-db`
-**Version**: `0.1.0`
-**App Version**: `18` (PostgreSQL version)
-
-**Key Resources Created**:
-- **StatefulSet**: PostgreSQL pod with persistent volume
-- **Service**: ClusterIP service on port `5432` (name: `kubeoptix-db`)
-- **Secret**: Contains `POSTGRESQL_USER`, `POSTGRESQL_PASSWORD`, `POSTGRESQL_DATABASE`
-- **PersistentVolumeClaim**: 20Gi storage (configurable)
-- **ServiceAccount**: For pod identity
-
-**Main Parameters** (in `helm/postgresql/values.yaml`):
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `image.repository` | PostgreSQL image | `rhel9/postgresql-18` |
-| `image.tag` | Image tag | `9.8-1787043471` |
-| `postgresql.database` | Database name | `kubeoptix` |
-| `postgresql.username` | Database user | `kubeoptix` |
-| `postgresql.password` | Database password | (32-char hex) |
-| `persistence.enabled` | Use persistent volume | `true` |
-| `persistence.size` | Volume size | `20Gi` |
-| `persistence.storageClassName` | StorageClass | `null` (use default) |
-| `resources.requests.cpu` | CPU request | `100m` |
-| `resources.requests.memory` | Memory request | `256Mi` |
-| `resources.limits.memory` | Memory limit | `512Mi` |
-
-## Running Locally
-
-### Prerequisites
-
-- JDK 25 installed and in PATH
-- Maven 3.9+ installed
-- Podman or Docker installed
-- `.env` file in repository root (should exist with defaults)
-
-### Start PostgreSQL
+Ou, se preferir só o banco:
 
 ```bash
 podman compose up -d postgresql
 ```
 
-Verify PostgreSQL is running:
+### 2) Rodar em modo desenvolvimento
 
 ```bash
-podman compose ps
-podman logs postgresql
+JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
+PATH=/usr/lib/jvm/java-25-openjdk/bin:$PATH \
+./mvnw quarkus:dev
 ```
 
-### Run in Development Mode
+A aplicação sobe em:
+
+- http://localhost:8000
+- Swagger UI: http://localhost:8000/q/swagger-ui
+- Health: http://localhost:8000/q/health
+
+### 3) Validar a API
 
 ```bash
-mvn quarkus:dev
-```
-
-Quarkus dev mode:
-- Auto-reloads on code changes
-- Loads environment variables from `.env`
-- Runs on `http://localhost:8000`
-- Swagger UI available at `http://localhost:8000/q/swagger-ui`
-
-### Verify Application
-
-```bash
-# Health check
 curl http://localhost:8000/q/health
-
-# Readiness probe
-curl http://localhost:8000/q/health/ready
-
-# List system settings (initially empty)
 curl http://localhost:8000/system-settings
 ```
 
-### Stop Local Environment
+> Observação: ao subir a aplicação em modo teste ou dev, o Hibernate tenta criar o schema conforme as entidades. Se o PostgreSQL não estiver acessível, a inicialização falha. Isso também explica por que a suíte de testes exige banco configurado.
+
+## Compilar e testar
+
+### Build da aplicação
 
 ```bash
-podman compose down
+JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
+PATH=/usr/lib/jvm/java-25-openjdk/bin:$PATH \
+./mvnw package
 ```
 
-To also remove PostgreSQL data:
+### Execução de testes
 
 ```bash
-podman compose down -v
+JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
+PATH=/usr/lib/jvm/java-25-openjdk/bin:$PATH \
+./mvnw test
 ```
 
-## Development
-
-### Build
-
-**JVM build** (faster):
+### Build nativo
 
 ```bash
-mvn package
+JAVA_HOME=/usr/lib/jvm/java-25-openjdk \
+PATH=/usr/lib/jvm/java-25-openjdk/bin:$PATH \
+./mvnw package -Dnative
 ```
 
-Output: `target/quarkus-app/quarkus-run.jar`
+## Containers
 
-**Native build** (requires Mandrel/GraalVM with `native-image`):
-
-```bash
-mvn package -Dnative
-```
-
-Output: `target/*-runner`
-
-### Run Tests
-
-```bash
-mvn test
-```
-
-Tests include:
-- Document/Version CRUD operations
-- System Settings management
-- Health check probes
-- API response validation
-
-Integration tests:
-
-```bash
-mvn verify
-```
-
-### Code Quality
-
-Ensure all code is in English:
-- Comments
-- Log messages
-- Error messages
-- User-facing text
-
-Follow the existing package structure:
-```
-com.shiftwise.ai.kubeoptix.{documents,health,settings}
-```
-
-## Container
-
-### Build JVM Image
+### Construir imagem JVM
 
 ```bash
 podman build -f Containerfile -t kubeoptix-configurations:latest .
 ```
 
-The JVM image:
-- Uses RHEL 10 UBI as base
-- Includes JDK 25 and Maven
-- Runs the traditional Quarkus JVM application (~400MB image)
-- Faster build time, slightly higher runtime memory
-
-### Build Native Image
+### Construir imagem nativa
 
 ```bash
 podman build -f Containerfile.native -t kubeoptix-configurations:native .
 ```
 
-The native image:
-- Uses JDK 25 Mandrel builder in first stage
-- Produces minimal executable (~200MB image)
-- Significantly faster startup (~500ms)
-- Lower memory footprint
+## Deploy em OpenShift/Kubernetes
 
-**Note**: Native builds are slower but produce smaller, faster images suitable for resource-constrained environments.
-
-### Run Container Locally
-
-**JVM:**
+Há um script de instalação para provisionar o banco e a aplicação em namespace do cluster:
 
 ```bash
-podman run -d \
-  --name kubeoptix-api \
-  -p 8000:8000 \
-  -e POSTGRESQL_HOST=postgresql \
-  -e POSTGRESQL_USER=kubeoptix \
-  -e POSTGRESQL_PASSWORD=password \
-  -e POSTGRESQL_DATABASE=kubeoptix \
-  --network compose_default \
-  kubeoptix-configurations:latest
-```
-
-**Native:**
-
-```bash
-podman run -d \
-  --name kubeoptix-api \
-  -p 8000:8000 \
-  -e POSTGRESQL_HOST=postgresql \
-  -e POSTGRESQL_USER=kubeoptix \
-  -e POSTGRESQL_PASSWORD=password \
-  -e POSTGRESQL_DATABASE=kubeoptix \
-  --network compose_default \
-  kubeoptix-configurations:native
-```
-
-## Deployment
-
-### OpenShift/Kubernetes Deployment
-
-The application uses Helm charts for deployment. The `install.sh` script handles the complete deployment flow:
-
-1. **Database Setup**: PostgreSQL StatefulSet with 20Gi persistent volume
-2. **Application Build**: OpenShift BuildConfig (if available) builds from Git
-3. **Application Deployment**: Quarkus application StatefulSet
-4. **Automatic Rollout**: Pod automatically restarts when new image is available
-
-**Deployment Namespace**: `shiftwise-ai` (configurable)
-
-**Container Image Source**:
-- For OpenShift: Built via BuildConfig from Git repository
-- For Kubernetes: Manually push image to registry and configure in `values.yaml`
-
-**Verify Deployment**:
-
-```bash
-oc get pods -n shiftwise-ai
-oc logs -n shiftwise-ai -l app=kubeoptix-configurations -f
-
-# Check health
-oc exec -n shiftwise-ai <pod-name> -- \
-  curl http://localhost:8000/q/health
-```
-
-## Troubleshooting
-
-### Application fails to start
-
-**Check database connectivity**:
-
-```bash
-oc logs -n shiftwise-ai <pod-name>
-# Look for "connection refused" or "authentication failed"
-```
-
-**Verify PostgreSQL is running**:
-
-```bash
-oc get pods -n shiftwise-ai -l app=kubeoptix-db
-oc logs -n shiftwise-ai <postgres-pod-name>
-```
-
-**Verify database credentials**:
-
-```bash
-oc get secret kubeoptix-db -n shiftwise-ai -o yaml
-```
-
-### Build hangs or times out
-
-**Increase timeout**:
-
-```bash
-WAIT_FOR_APPLICATION_BUILD=true \
-APPLICATION_BUILD_TIMEOUT_SECONDS=3600 \
 ./install.sh
 ```
 
-**Check build logs**:
+Parâmetros comuns:
 
 ```bash
+NAMESPACE=shiftwise-ai \
+DATABASE_RELEASE_NAME=kubeoptix-db \
+APPLICATION_RELEASE_NAME=kubeoptix-configurations \
+INSTALL_DATABASE=true \
+INSTALL_APPLICATION=true \
+./install.sh
+```
+
+A instalação usa os charts em `helm/postgresql` e `helm/configurations-api`, além de verificar acesso ao cluster, secret do repositório de origem e status da build do OpenShift.
+
+## Observações de projeto
+
+- O nome do pacote é `com.shiftwise.ai.kubeoptix`.
+- Os comentários e mensagens de código devem seguir o padrão em inglês.
+- O endpoint `/costumers-list` foi mantido conforme implementação atual; embora o nome correto em português seja `customers`, o código atual usa a grafia `costumers`.
+- A aplicação usa `drop-and-create` no Hibernate em ambiente de desenvolvimento; por isso o banco deve ser resetado ou reprovisionado conforme a necessidade.
+
+## Troubleshooting
+
+### Banco não acessível
+
+Se a aplicação falhar ao iniciar com erros de conexão JDBC, verifique:
+
+```bash
+curl http://localhost:8000/q/health
+podman ps
+podman logs <container>
+```
+
+e confirme se as variáveis `POSTGRESQL_*` apontam para o host e porta corretos.
+
+### Build em cluster não finaliza
+
+```bash
+oc get builds -n shiftwise-ai
 oc logs -n shiftwise-ai bc/kubeoptix-configurations -f
 ```
 
-### Image pull fails
-
-Verify image registry access:
+### Secret para Git/OpenShift ausente
 
 ```bash
-oc describe is kubeoptix-configurations -n shiftwise-ai
+oc get secret gitlab -n github-auth
 ```
 
-For external registries, ensure ImagePullSecret is configured in `values.yaml`.
+Se necessário, crie o secret manualmente antes da instalação.
 
-### Persistent volume not binding
+## Resumo
 
-```bash
-oc describe pvc -n shiftwise-ai
-```
+Essa aplicação é um serviço de configuração e metadados da plataforma KubeOptix, com foco em:
 
-Verify StorageClass availability:
+- persistência de configurações globais
+- gestão de documentos e versões
+- cadastro de autores e clientes
+- integração com Kubernetes/OpenShift
+- exposição de APIs e health checks para governança operacional
 
-```bash
-oc get storageclass
-```
-
-## License
-
-This project is part of the KubeOptix platform. Refer to project-level LICENSE file for terms.
+Com essa estrutura, ela funciona como uma API de suporte ao funcionamento e à configuração da plataforma, não apenas como um microserviço de configuração isolada.
