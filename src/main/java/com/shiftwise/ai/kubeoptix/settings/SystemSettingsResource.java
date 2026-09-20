@@ -168,7 +168,7 @@ public class SystemSettingsResource {
     }
 
     private static void apply(SystemSettingsRequest request, SystemSettings settings) {
-        settings.language = request.language() == null ? Language.EN : request.language();
+        settings.language = request.language() == null ? Language.DEFAULT : validateLanguage(request.language());
         settings.cursorApiKey = request.cursorApiKey();
         settings.cursorModel = request.cursorModel();
         settings.llmApiKey = request.llmApiKey();
@@ -180,7 +180,7 @@ public class SystemSettingsResource {
 
     private static void merge(SystemSettingsRequest request, SystemSettings settings) {
         if (request.language() != null) {
-            settings.language = request.language();
+            settings.language = validateLanguage(request.language());
         }
         if (request.cursorApiKey() != null) {
             settings.cursorApiKey = request.cursorApiKey();
@@ -199,6 +199,14 @@ public class SystemSettingsResource {
         }
         if (request.defaultExtractionMethod() != null) {
             settings.defaultExtractionMethod = request.defaultExtractionMethod();
+        }
+    }
+
+    private static String validateLanguage(String language) {
+        try {
+            return Language.validate(language);
+        } catch (IllegalArgumentException exception) {
+            throw new BadRequestException(exception.getMessage());
         }
     }
 }
