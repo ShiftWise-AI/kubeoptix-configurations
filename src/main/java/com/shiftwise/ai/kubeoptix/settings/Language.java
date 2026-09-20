@@ -1,32 +1,28 @@
 package com.shiftwise.ai.kubeoptix.settings;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
+import java.util.Locale;
+import java.util.Locale.IllformedLocaleException;
 
-public enum Language {
-    EN("en"),
-    PT("pt"),
-    ES("es"),
-    IT("it");
+public final class Language {
 
-    private final String value;
+    public static final String DEFAULT = "en";
 
-    Language(String value) {
-        this.value = value;
+    private Language() {
     }
 
-    @JsonValue
-    public String value() {
-        return value;
-    }
-
-    @JsonCreator
-    public static Language fromValue(String value) {
-        for (Language language : values()) {
-            if (language.value.equals(value)) {
-                return language;
-            }
+    public static String validate(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Language must be a valid BCP 47 language tag");
         }
-        throw new IllegalArgumentException("Unknown language: " + value);
+
+        try {
+            Locale locale = new Locale.Builder().setLanguageTag(value).build();
+            if (locale.toLanguageTag().equals("und")) {
+                throw new IllegalArgumentException("Language must contain a language subtag");
+            }
+            return locale.toLanguageTag();
+        } catch (IllformedLocaleException exception) {
+            throw new IllegalArgumentException("Invalid BCP 47 language tag: " + value, exception);
+        }
     }
 }

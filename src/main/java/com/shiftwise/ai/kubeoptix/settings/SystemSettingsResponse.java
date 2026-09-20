@@ -8,8 +8,8 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 public record SystemSettingsResponse(
     @Schema(description = "System settings unique identifier.", example = "7a0c6a7a-01b7-4da8-8c8a-d4389f693d78")
         UUID id,
-    @Schema(description = "Default language used by the application.", example = "pt")
-        Language language,
+    @Schema(description = "Default language as a BCP 47 language tag.", example = "pt-BR")
+    String language,
     @Schema(description = "Cursor API key used by integrations.", example = "cursor-api-key")
         String cursorApiKey,
     @Schema(description = "Cursor model name.", example = "gpt-4.1")

@@ -9,7 +9,7 @@ A aplicação centraliza as informações de configuração operacionais da plat
 ### 1) Configurações do sistema
 A entidade `SystemSettings` guarda os dados globais do ambiente, como:
 
-- idioma padrão
+- idioma padrão como locale BCP 47 (por exemplo, `en`, `pt-BR`, `es-MX` ou `zh-Hans`)
 - chave e modelo do Cursor
 - chave e modelo do provedor LLM
 - status do sistema (`active` / `inactive`)
