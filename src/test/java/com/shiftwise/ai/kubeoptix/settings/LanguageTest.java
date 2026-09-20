@@ -17,7 +17,7 @@ class LanguageTest {
     @Test
     void rejectsInvalidTags() {
         assertThrows(IllegalArgumentException.class, () -> Language.validate("pt_BR"));
-        assertThrows(IllegalArgumentException.class, () -> Language.validate("not-a-language"));
+        assertThrows(IllegalArgumentException.class, () -> Language.validate("a"));
         assertThrows(IllegalArgumentException.class, () -> Language.validate(""));
     }
 }

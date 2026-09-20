@@ -1,7 +1,7 @@
 package com.shiftwise.ai.kubeoptix.settings;
 
+import java.util.IllformedLocaleException;
 import java.util.Locale;
-import java.util.Locale.IllformedLocaleException;
 
 public final class Language {
 
