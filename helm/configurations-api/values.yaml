@@ -4,8 +4,8 @@ statefulSet:
   enabled: true
 
 image:
-  repository: image-registry.openshift-image-registry.svc:5000/shiftwise-ai/kubeoptix-configurations
-  tag: latest
+  repository: quay.io/parraes/kubeoptix-configurations
+  tag: 1.0.0
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -57,13 +57,13 @@ buildConfig:
   enabled: true
   name: kubeoptix-configurations
   gitUri: https://github.com/ShiftWise-AI/kubeoptix-configurations.git
-  gitRef: feature/dm-versioncontroll
+  gitRef: main
   contextDir: ""
   dockerfilePath: Containerfile
   sourceSecret:
     enabled: true
-    name: gitlab
-  outputImageStreamTag: kubeoptix-configurations:latest
+    name: github-auth
+  outputImageStreamTag: kubeoptix-configurations:1.0.0
   triggers:
     configChange: true
     imageChange: true

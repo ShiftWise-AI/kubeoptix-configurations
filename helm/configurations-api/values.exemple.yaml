@@ -1,8 +1,8 @@
 replicaCount: 1
 
 image:
-  repository: image-registry.openshift-image-registry.svc:5000/shiftwise-ai/kubeoptix-configurations
-  tag: latest
+  repository: quay.io/parraes/kubeoptix-configurations
+  tag: 1.0.0
   pullPolicy: IfNotPresent
 
 service:
@@ -18,4 +18,4 @@ buildConfig:
   gitRef: main
   sourceSecret:
     enabled: true
-    name: gitlab
+    name: github-auth
