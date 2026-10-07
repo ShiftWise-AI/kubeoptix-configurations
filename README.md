@@ -1,5 +1,7 @@
 # KubeOptix Configurations API
 
+Consulte [CONTRIBUTING.md](CONTRIBUTING.md) para o fluxo de branches e o processo de contribuição.
+
 API REST em Java com Quarkus para gerenciar configurações do sistema e o catálogo de documentos do KubeOptix. A aplicação expõe operações de CRUD para documentos, versões, autores, clientes e uma única configuração global do sistema, além de endpoints de health check e documentação OpenAPI.
 
 ## Licença
