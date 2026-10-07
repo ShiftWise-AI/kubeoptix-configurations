@@ -2,6 +2,10 @@
 
 API REST em Java com Quarkus para gerenciar configurações do sistema e o catálogo de documentos do KubeOptix. A aplicação expõe operações de CRUD para documentos, versões, autores, clientes e uma única configuração global do sistema, além de endpoints de health check e documentação OpenAPI.
 
+## Licença
+
+Este projeto está licenciado sob a Apache License, Version 2.0. Consulte o arquivo [LICENSE](LICENSE) para obter o texto completo.
+
 ## O que a aplicação faz
 
 A aplicação centraliza as informações de configuração operacionais da plataforma e o conteúdo documental que a interface ou outros serviços podem consultar.
