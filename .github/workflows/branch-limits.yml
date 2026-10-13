@@ -20,8 +20,8 @@ jobs:
             exit 1
           fi
 
-          if [[ "$BASE_REF" == "main" && "$HEAD_REF" != "stage" && ! "$HEAD_REF" =~ ^hotfix/.+ ]]; then
-            echo "::error::The 'main' branch only accepts pull requests from 'stage' or 'hotfix/*'."
+          if [[ "$BASE_REF" == "main" && "$HEAD_REF" != "stage" && ! "$HEAD_REF" =~ ^hotfix/.+ && ! "$HEAD_REF" =~ ^copilot/.+ ]]; then
+            echo "::error::The 'main' branch only accepts pull requests from 'stage', 'hotfix/*', or 'copilot/*'."
             exit 1
           fi
 
