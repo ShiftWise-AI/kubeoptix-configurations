@@ -16,7 +16,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:17.11
+        env:
+          POSTGRES_DB: kubeoptix_ci
+          POSTGRES_USER: kubeoptix_ci
+          POSTGRES_PASSWORD: ci-only-ephemeral
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kubeoptix_ci -d kubeoptix_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRESQL_HOST: localhost
+      POSTGRESQL_PORT: '5432'
+      POSTGRESQL_DATABASE: kubeoptix_ci
+      POSTGRESQL_USER: kubeoptix_ci
+      POSTGRESQL_PASSWORD: ci-only-ephemeral
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - run: bash ./mvnw -B verify -DskipITs=false
+
   publish:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
