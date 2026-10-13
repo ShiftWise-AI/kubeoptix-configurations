@@ -29,11 +29,14 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17.11
+        image: registry.redhat.io/rhel9/postgresql-18:9.8-1787043471
+        credentials:
+          username: ${{ secrets.REDHAT_REGISTRY_USERNAME }}
+          password: ${{ secrets.REDHAT_REGISTRY_PASSWORD }}
         env:
-          POSTGRES_DB: kubeoptix_ci
-          POSTGRES_USER: kubeoptix_ci
-          POSTGRES_PASSWORD: ci-only-ephemeral
+          POSTGRESQL_DATABASE: kubeoptix_ci
+          POSTGRESQL_USER: kubeoptix_ci
+          POSTGRESQL_PASSWORD: ci-only-ephemeral
         ports:
           - 5432:5432
         options: >-

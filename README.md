@@ -70,6 +70,13 @@ A aplicação expõe endpoints do MicroProfile Health para uso em Kubernetes/Ope
 - Health checks com SmallRye Health
 - Helm para deploy no cluster
 
+## GitHub Actions
+
+O job `test` usa a imagem `registry.redhat.io/rhel9/postgresql-18:9.8-1787043471`, também configurada no chart PostgreSQL.
+Configure os secrets de Actions `REDHAT_REGISTRY_USERNAME` e `REDHAT_REGISTRY_PASSWORD` com as credenciais de uma conta de serviço Red Hat autorizada a baixar essa imagem.
+A autenticação acontece antes da inicialização do serviço PostgreSQL; não basta fazer login em uma etapa do job.
+Pull requests de forks não recebem esses secrets e precisam ser validados em uma branch do próprio repositório, após revisão do código.
+
 ## Estrutura do projeto
 
 ```text
