@@ -241,8 +241,6 @@ def update_operator(version, digest, directory):
     changed = run("git", "diff", "--name-only", cwd=root).splitlines()
     if changed not in ([], ["internal/operands/settings.go"]):
         raise ValueError("Unexpected Operator changes")
-    if changed and not remote_branches:
-        raise ValueError("Expected the Operator update branch to exist before recovery")
     if changed:
         run("git", "checkout", "-B", branch, cwd=root)
         run("git", "add", "internal/operands/settings.go", cwd=root)
