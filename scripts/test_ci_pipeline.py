@@ -108,6 +108,35 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(api.call_count, 2)
         self.assertEqual(api.call_args_list[1].args[1], "POST")
 
+    def test_operator_update_creates_branch_and_pr_for_first_release(self):
+        reference = pipeline.IMAGE + ":1.0.6@sha256:" + "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            settings = Path(directory) / "internal/operands/settings.go"
+            settings.parent.mkdir(parents=True)
+            settings.write_text(
+                'ConfigurationsImage: constants.ConfigurationsRegistry + "/" + constants.ConfigurationsName + ":" + constants.ImageTag,\n',
+                encoding="utf-8",
+            )
+
+            def fake_run(*args, cwd=None):
+                if args[:3] == ("git", "diff", "--name-only") and len(args) > 3:
+                    return ""
+                if args == ("git", "diff", "--name-only"):
+                    return "internal/operands/settings.go"
+                if args[:3] == ("git", "ls-remote", "--heads"):
+                    return ""
+                return ""
+
+            with patch.object(pipeline, "run", side_effect=fake_run) as run, patch.object(
+                pipeline, "api", side_effect=[[], {}]
+            ) as api:
+                pipeline.update_operator("1.0.6", "sha256:" + "b" * 64, directory)
+
+        calls = [call.args for call in run.call_args_list]
+        self.assertIn(("git", "push", "origin", "HEAD:refs/heads/fix/configurations-1.0.6"), calls)
+        self.assertEqual(api.call_count, 2)
+        self.assertEqual(api.call_args_list[1].args[1], "POST")
+
     def test_release_reservation_survives_a_fresh_checkout(self):
         previous = Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
